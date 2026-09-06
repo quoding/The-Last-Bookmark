@@ -129,11 +129,32 @@ function endingFor(story: StoredStory): Ending {
   const promise = messages.some(
     (message) => message.kind === "record" && message.record_type === "promise",
   );
-  const bookAccepted = messages.some(
+  const giftRecords = messages.filter(
     (message) =>
       message.kind === "record" &&
-      message.text === "《조금 늦은 안부》를 선물로 받았다.",
+      [
+        "《조금 늦은 안부》를 선물로 받았다.",
+        "책과 책갈피는 서윤이 보관하기로 했다.",
+      ].includes(message.text),
   );
+  // 고정 7턴 회차의 6턴에는 기록 카드 대신 선물 수락과 전달이 대화로 확정되어 있다.
+  const seededGift = history.some(
+    (turn) =>
+      turn.completed_turns === 6 &&
+      turn.messages.some(
+        (message) =>
+          message.kind === "player" &&
+          message.text === "이 책은 고맙게 받을게요. 천천히 읽고 싶어요.",
+      ) &&
+      turn.messages.some(
+        (message) =>
+          message.kind === "reply" &&
+          message.text.startsWith("그럼 선물로 받아주세요."),
+      ),
+  );
+  const bookAccepted = giftRecords.length
+    ? giftRecords.at(-1)!.text === "《조금 늦은 안부》를 선물로 받았다."
+    : seededGift;
   const body = early
     ? "사이책방의 시계는 마지막으로 나눈 말의 시각에 머물렀다. 정리가 끝나기 전에, 지금까지의 이야기를 이곳에 모아두었다.\n\n서윤이 잠깐 손을 멈추었던 순간과, 당신이 건넨 말들이 남았다. 더 나누지 않은 대화를 작별 인사로 대신하지는 않았다.\n\n아직 문을 잠그는 소리는 들리지 않았다. 오늘의 끝을 어디까지 함께할지는 빈칸으로 남겨둔다."
     : "열쇠가 돌아가는 소리는 생각보다 작았다. 마지막 조명이 꺼지고 사이책방의 문이 잠겼다. 오늘의 영업은 여기에서 끝났다.\n\n당신이 건넨 말들은 지워지지 않았다. 서윤이 답을 고르던 짧은 침묵과, 문장 사이로 들리던 빗소리가 마지막 시간에 함께 남았다.\n\n" +
@@ -218,9 +239,17 @@ function makeTurn(
       record_type: "fact",
       text: "《조금 늦은 안부》를 선물로 받았다.",
     });
-  } else if (/책/.test(text) && /안 받을|받지 않|거절|가지고 계/.test(text))
+  } else if (/책/.test(text) && /안 받을|받지 않|거절|가지고 계/.test(text)) {
     answer =
       "괜찮아요. 책은 제가 보관할게요. 꼭 뭔가를 가져가야 기억에 남는 건 아니니까요.";
+    records.push({
+      id: `m_${turn}_record_book`,
+      turn,
+      kind: "record",
+      record_type: "fact",
+      text: "책과 책갈피는 서윤이 보관하기로 했다.",
+    });
+  }
   if (
     turn >= 7 &&
     /감상 보내도|다 읽으면 감상|연락처를 나/.test(text) &&

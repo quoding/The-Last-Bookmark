@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
+from app.api.common import build_scene_state, get_or_create_card, is_card_available, serialize_message
 from app.api.deps import get_image_generator
 from app.auth import issue_token, require_code_id, verify_invite_code
 from app.config import get_settings
@@ -12,7 +13,7 @@ from app.engine.scene import get_initial_scene
 from app.images.openai_images import ImageGenerator
 from app.images.presets import InvalidPresetError, to_english_fragments, validate_selection
 from app.images.service import generate_portrait, generate_scene_image
-from app.models import Image, ImageJob
+from app.models import Card, Image, ImageJob, Message
 from app.models import Session as SessionModel
 from app.schemas import (
     AuthVerifyRequest,
@@ -25,6 +26,7 @@ from app.schemas import (
     SessionListItem,
     SessionListResponse,
     SessionStartResponse,
+    SessionStateResponse,
 )
 
 router = APIRouter(prefix="/api")
@@ -88,7 +90,7 @@ def list_sessions(code_id: str = Depends(require_code_id), db: DbSession = Depen
             index=s.index,
             status=s.status,
             completed_turns=s.completed_turns,
-            ending_title=s.ending_title if s.status == "completed" else None,
+            ending_title=s.ending_title if s.status in ("completed", "ended_early") else None,
             portrait_url=_image_url(s.portrait_image_id),
             created_at=s.created_at,
         )
@@ -124,6 +126,7 @@ def create_session(
     session = SessionModel(code_id=code_id, index=next_index, presets=selection)
     db.add(session)
     db.flush()
+    db.add(Card(session_id=session.id))
 
     job = ImageJob(session_id=session.id, kind="portrait", scene_id=None, status="pending")
     db.add(job)
@@ -260,4 +263,33 @@ def start_session(
         completed_turns=session.completed_turns,
         story_time=initial.story_time,
         scene=SceneState(id=initial.scene_id, name=initial.scene_name, entered=True, image_url=scene1_image_url),
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=SessionStateResponse)
+def get_session_state(
+    session_id: str,
+    code_id: str = Depends(require_code_id),
+    db: DbSession = Depends(get_db),
+):
+    """회차 상태·메시지·이미지 복원. 재진입 시 저장된 상태를 그대로 돌려준다."""
+    session = _get_owned_session(db, code_id, session_id)
+
+    messages = db.execute(
+        select(Message).where(Message.session_id == session.id).order_by(Message.turn, Message.created_at)
+    ).scalars().all()
+
+    scene_state = build_scene_state(db, session.id, session.scene_id, entered=False)
+    card = get_or_create_card(db, session.id)
+
+    return SessionStateResponse(
+        id=str(session.id),
+        status=session.status,
+        completed_turns=session.completed_turns,
+        story_time=session.story_time,
+        scene=scene_state,
+        messages=[serialize_message(m) for m in messages],
+        card_available=is_card_available(session, card),
+        is_final_turn=session.completed_turns >= 12,
+        portrait=_portrait_status(session, db),
     )

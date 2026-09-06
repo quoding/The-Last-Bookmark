@@ -115,6 +115,10 @@ class EndEarlyRequest(BaseModel):
     request_id: str
 
 
+class EndEarlyResponse(BaseModel):
+    status: str
+
+
 class EvidenceItem(BaseModel):
     message_id: str
     turn: int
@@ -127,6 +131,10 @@ class EvidenceItem(BaseModel):
 class EndingImageState(BaseModel):
     status: str  # generating / done / failed / refused
     url: str | None = None
+
+
+class EndingImageRetryResponse(BaseModel):
+    image: EndingImageState
 
 
 class EndingResponse(BaseModel):

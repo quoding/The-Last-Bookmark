@@ -68,8 +68,50 @@ def fake_image_generator():
     return _FakeGenerator()
 
 
+class ScriptedLLMClient:
+    """LLM 목. 턴별 응답을 큐에 넣어두면 순서대로 소비하고, 없으면 기본 응답을 준다."""
+
+    def __init__(self):
+        from app.llm.contracts import EndingParseResult, LLMEndingOutput, LLMTurnOutput, ParseResult
+
+        self._ParseResult = ParseResult
+        self._LLMTurnOutput = LLMTurnOutput
+        self._EndingParseResult = EndingParseResult
+        self._LLMEndingOutput = LLMEndingOutput
+        self.turn_queue: list[dict] = []
+        self.ending_response: dict | None = None
+        self.calls: list[dict] = []
+
+    def generate_turn(self, session, recent_messages, player_input, card=None):
+        self.calls.append({"player_input": player_input, "recent_messages": list(recent_messages)})
+        if self.turn_queue:
+            spec = self.turn_queue.pop(0)
+        else:
+            spec = {"reply": "알겠어요.", "narration": "", "proposed_events": []}
+        output = self._LLMTurnOutput(
+            reply=spec.get("reply", "알겠어요."),
+            narration=spec.get("narration", ""),
+            proposed_events=spec.get("proposed_events", []),
+        )
+        return self._ParseResult(output=output, degraded=False)
+
+    def generate_ending(self, session, evidence_quotes, card=None):
+        spec = self.ending_response or {
+            "title": "문을 닫은 뒤에도 남는 말",
+            "body": "정리를 마친 서점 안이 조용해졌다. " * 6,
+            "unresolved": [],
+        }
+        output = self._LLMEndingOutput(**spec)
+        return self._EndingParseResult(output=output, degraded=False)
+
+
 @pytest.fixture
-def client(db_session, fake_image_generator, tmp_path, monkeypatch):
+def fake_llm_client():
+    return ScriptedLLMClient()
+
+
+@pytest.fixture
+def client(db_session, fake_image_generator, fake_llm_client, tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     monkeypatch.setenv("STORAGE_PATH", str(tmp_path))
@@ -84,6 +126,7 @@ def client(db_session, fake_image_generator, tmp_path, monkeypatch):
     monkeypatch.setattr(db_module, "_SessionLocal", None)
 
     from app.api.deps import get_image_generator
+    from app.api.deps_llm import get_llm_client
     from app.db import get_db
     from app.main import app
 
@@ -92,6 +135,7 @@ def client(db_session, fake_image_generator, tmp_path, monkeypatch):
 
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_image_generator] = lambda: fake_image_generator
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm_client
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

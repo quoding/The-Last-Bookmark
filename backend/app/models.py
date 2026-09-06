@@ -144,6 +144,7 @@ class Card(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id"), unique=True, nullable=False
     )
+    decided: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     written: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     author: Mapped[str | None] = mapped_column(String(16), nullable=True)  # player/seoyun

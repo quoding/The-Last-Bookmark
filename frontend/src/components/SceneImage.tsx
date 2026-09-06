@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { imageURL } from '../api/client';
 import s from '../App.module.css';
 export function SceneImage({ url, label, generating = false, failed = false, onRetry, busy = false }: { url: string | null; label: string; generating?: boolean; failed?: boolean; onRetry?: () => void; busy?: boolean }) {
+  url = imageURL(url);
   const [visible, setVisible] = useState<string | null>(null);
   const [previous, setPrevious] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);

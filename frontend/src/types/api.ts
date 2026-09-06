@@ -8,7 +8,7 @@ export type Message = {
 export interface Session {
   id: string;
   index: number;
-  status: 'completed' | 'in_progress';
+  status: 'completed' | 'in_progress' | 'ended_early';
   completed_turns: number;
   ending_title: string | null;
   portrait_url: string | null;
@@ -29,5 +29,5 @@ export interface Ending {
   card: { written: boolean; text: string | null; author: 'player' | 'seoyun' | null };
   evidence: { message_id: string; turn: number; story_time: string; scene_name: string; quote: string; effect: string }[];
   unresolved: string[];
-  image: { status: 'generating' | 'completed' | 'failed' | 'rejected'; url: string | null };
+  image: { status: 'generating' | 'done' | 'failed' | 'refused'; url: string | null };
 }

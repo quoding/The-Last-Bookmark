@@ -84,7 +84,7 @@ export const mockEnding: Ending = {
     { message_id: 'm_9_p', turn: 9, story_time: '20:53', scene_name: SCENE_NAMES[2], quote: INPUTS[8], effect: '서윤이 제안을 받아들이면서, 다음 감상을 주고받을 구체적인 약속이 남았다.' },
   ],
   unresolved: ['새 서점의 장소는 정해지지 않았다. 다음 만남의 날짜도 아직 비어 있다.'],
-  image: { status: 'completed', url: '/images/ending.svg' },
+  image: { status: 'done', url: '/images/ending.svg' },
 };
 export const mockSessions: SessionList = { sessions: [
   { id: 'story-3', index: 3, status: 'in_progress', completed_turns: 7, ending_title: null, portrait_url: '/images/portrait-3.svg', created_at: '2026-09-07T20:11:00+09:00' },

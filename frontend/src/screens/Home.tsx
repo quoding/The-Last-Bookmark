@@ -9,7 +9,7 @@ export function Home({ authenticated, sessions, onVerify, onNew, onOpen, onLogou
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const continuing = sessions.find(item => item.status !== 'completed');
+  const continuing = sessions.find(item => item.status === 'in_progress');
   async function enter() {
     if (!code.trim() || busy) return;
     setBusy(true); setError('');

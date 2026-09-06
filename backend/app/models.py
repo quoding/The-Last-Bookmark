@@ -46,7 +46,9 @@ class Session(Base):
     presets: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     portrait_image_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("images.id"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("images.id", use_alter=True, name="fk_sessions_portrait_image_id"),
+        nullable=True,
     )
     portrait_retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     portrait_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -73,7 +75,9 @@ class Session(Base):
     ending_unresolved: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # list[str]
     ending_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # list[dict]
     ending_image_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("images.id"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("images.id", use_alter=True, name="fk_sessions_ending_image_id"),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

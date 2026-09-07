@@ -23,6 +23,8 @@ def _test_settings_env(monkeypatch):
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
     monkeypatch.setenv("CODE_API_KEYS", "")
     monkeypatch.setenv("ADMIN_PASSWORD", "")
+    monkeypatch.setenv("CODE_IP_ALLOWLIST", "")
+    monkeypatch.setenv("IMAGE_BUDGET_UNLIMITED_CODES", "")
     from app.config import get_settings
 
     get_settings.cache_clear()

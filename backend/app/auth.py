@@ -7,9 +7,10 @@
 import hashlib
 import time
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 from jose import JWTError, jwt
 
+from app.api.rate_limit import get_client_ip
 from app.config import get_settings
 
 JWT_ALGORITHM = "HS256"
@@ -64,9 +65,20 @@ def decode_token(token: str) -> str:
     return code_id
 
 
-def require_code_id(authorization: str = Header(default="")) -> str:
-    """FastAPI 의존성. `Authorization: Bearer <token>`에서 code_id를 얻는다."""
+def require_code_id(request: Request, authorization: str = Header(default="")) -> str:
+    """FastAPI 의존성. `Authorization: Bearer <token>`에서 code_id를 얻는다.
+
+    코드에 IP 제한이 걸려있으면(예: 개발자 코드를 특정 네트워크로만 묶을 때)
+    로그인 이후의 모든 요청에서도 매번 다시 검사한다 — 토큰만 훔쳐서 다른
+    곳에서 쓰는 것도 막기 위해서다.
+    """
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="인증 토큰이 필요합니다.")
     token = authorization.removeprefix("Bearer ").strip()
-    return decode_token(token)
+    code_id = decode_token(token)
+
+    client_ip = get_client_ip(request)
+    if not get_settings().is_ip_allowed(code_id, client_ip):
+        raise HTTPException(status_code=403, detail="이 코드는 허용된 위치에서만 사용할 수 있어요.")
+
+    return code_id

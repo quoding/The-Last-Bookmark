@@ -26,7 +26,13 @@ class Settings(BaseSettings):
     code_api_keys: str = ""
 
     image_budget_sessions: int = 3  # 코드 1개당 저장 가능한 회차 수 상한
+    # 콤마 구분 code_id 목록. 여기 있는 코드는 image_budget_sessions 상한을 안 받는다.
+    image_budget_unlimited_codes: str = ""
     storage_path: str = "./storage"
+
+    # 코드별 접속 허용 IP. "code_id:ip1|ip2,code_id2:ip1" 형식.
+    # 매핑에 없는 code_id는 제한 없이 어디서나 접속 가능(예: 심사용 코드).
+    code_ip_allowlist: str = ""
 
     # 관리자 전용 비용 모니터링 페이지(/admin, /api/admin/usage) 접근 비밀번호.
     # 비워두면 관리자 라우트 전체가 비활성화된다.
@@ -49,6 +55,31 @@ class Settings(BaseSettings):
 
     def resolve_api_key(self, code_id: str, default: str) -> str:
         return self._code_api_key_map().get(code_id, default)
+
+    def _unlimited_code_ids(self) -> set[str]:
+        return {c.strip() for c in self.image_budget_unlimited_codes.split(",") if c.strip()}
+
+    def is_budget_unlimited(self, code_id: str) -> bool:
+        return code_id in self._unlimited_code_ids()
+
+    def _ip_allowlist_map(self) -> dict[str, set[str]]:
+        result: dict[str, set[str]] = {}
+        for pair in self.code_ip_allowlist.split(","):
+            pair = pair.strip()
+            if not pair:
+                continue
+            code_id, _, ips = pair.partition(":")
+            allowed = {ip.strip() for ip in ips.split("|") if ip.strip()}
+            if code_id and allowed:
+                result[code_id] = allowed
+        return result
+
+    def is_ip_allowed(self, code_id: str, client_ip: str) -> bool:
+        """이 code_id에 IP 제한이 걸려있지 않으면 항상 True(심사용 코드 등)."""
+        allowed = self._ip_allowlist_map().get(code_id)
+        if allowed is None:
+            return True
+        return client_ip in allowed
 
 
 @lru_cache

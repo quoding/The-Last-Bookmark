@@ -92,10 +92,13 @@ def verify_code(body: AuthVerifyRequest, request: Request):
     check_rate_limit(ip)
 
     code_id = verify_invite_code(body.code)
-    record_attempt(ip, success=code_id is not None)
+    ip_ok = code_id is not None and get_settings().is_ip_allowed(code_id, ip)
+    record_attempt(ip, success=ip_ok)
 
     if code_id is None:
         raise HTTPException(status_code=401, detail="초대 코드가 올바르지 않습니다.")
+    if not ip_ok:
+        raise HTTPException(status_code=403, detail="이 코드는 허용된 위치에서만 사용할 수 있어요.")
     return AuthVerifyResponse(token=issue_token(code_id))
 
 
@@ -140,7 +143,7 @@ def create_session(
     existing_session_count = db.execute(
         select(func.count()).select_from(SessionModel).where(SessionModel.code_id == code_id)
     ).scalar_one()
-    if existing_session_count >= get_settings().image_budget_sessions:
+    if not get_settings().is_budget_unlimited(code_id) and existing_session_count >= get_settings().image_budget_sessions:
         raise HTTPException(
             status_code=403,
             detail=f"이 코드로 저장할 수 있는 회차는 최대 {get_settings().image_budget_sessions}개입니다.",

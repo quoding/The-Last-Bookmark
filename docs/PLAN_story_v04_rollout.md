@@ -50,10 +50,26 @@ story.md(v0.3) 내용으로 동작했다. 이번 작업으로 실제 대사·페
 
 ## 체크리스트
 
-- [ ] 1. `llm/prompts.py` — PERSONA_YAML/SCENARIO_YAML/SCENE_BRIEFS 교체
-- [ ] 2. `engine/opening.py` — 오프닝 텍스트 교체
-- [ ] 3. `docs/story.md` 교체, `docs/last_bookmark_story_v0.4.md` 삭제
-- [ ] 4. 장면 이름 문자열을 assert하던 기존 테스트 갱신
-- [ ] 5. 전체 테스트 스위트 통과 확인
-- [ ] 6. `story-v0.4-redesign` 브랜치에 커밋
+- [x] 1. `llm/prompts.py` — PERSONA_YAML/SCENARIO_YAML/SCENE_BRIEFS 교체(+FORBIDDEN_NOTES 카드 오해 방지 1줄 추가)
+- [x] 2. `engine/opening.py` — 오프닝 텍스트 교체(책+빈 카드 존재 공개 포함)
+- [x] 3. `docs/story.md` 교체, `docs/last_bookmark_story_v0.4.md` 삭제. `docs/api-contract.md`·
+      `docs/ui-spec.md`의 예시 장면 이름도 새 이름으로 갱신(계약 형태 변화 없음, 값만 갱신)
+- [x] 4. 장면 이름 문자열을 assert하던 기존 테스트 갱신(`test_scene_engine.py`,
+      `test_contract_extensions.py`, `test_turns_and_card.py`) — sed로 일괄 치환, 수정 불필요했음
+- [x] 5. 전체 테스트 스위트 138개 통과 확인
+- [x] 6. `story-v0.4-redesign` 브랜치에 커밋
 - [ ] 7. 사용자에게 실제 플레이 검증 요청, 이상 없으면 `master`에 merge하고 재배포
+
+## 장면 이름 변경 (실제 반영됨)
+
+| 장면 | 이전(v0.3) | 이후(v0.4) |
+|---|---|---|
+| 1 | 마지막 손님 | 남겨진 것 |
+| 2 | 남겨둔 책 | 조금 늦은 안부 |
+| 3 | 쓰지 못한 한 문장 | (동일) |
+| 4 | 문을 닫기 전에 | 21:00 |
+
+`GET /api/sessions/{id}`·턴 응답의 `scene.name`, 엔딩 evidence의 `scene_name` 필드 값이 이제
+새 이름으로 나간다. API 계약의 필드 형태(shape)는 그대로라 `docs/api-contract.md` 스키마 변경은
+아니지만, 프론트가 장면 이름을 화면에 그대로 표시하므로(ui-spec.md 5.1 구분선 등) **화면에 보이는
+텍스트가 바뀐다는 것을 Codex에게 알려줘야 한다** — 코드 수정은 필요 없고 그냥 참고 사항.

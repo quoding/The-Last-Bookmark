@@ -9,10 +9,10 @@ from dataclasses import dataclass
 MAX_TURNS = 12
 
 SCENES = {
-    1: {"name": "마지막 손님", "space": "서가 사이 통로"},
-    2: {"name": "남겨둔 책", "space": "카운터 앞"},
+    1: {"name": "남겨진 것", "space": "서가 사이 통로"},
+    2: {"name": "조금 늦은 안부", "space": "카운터 앞"},
     3: {"name": "쓰지 못한 한 문장", "space": "창가 작은 탁자"},
-    4: {"name": "문을 닫기 전에", "space": "출입문 밖 처마 아래"},
+    4: {"name": "21:00", "space": "출입문 밖 처마 아래"},
 }
 
 INITIAL_STORY_TIME = "20:30"

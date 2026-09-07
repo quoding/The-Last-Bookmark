@@ -81,12 +81,12 @@
   "status": "in_progress",
   "completed_turns": 5,
   "story_time": "20:41",
-  "scene": { "id": 2, "name": "남겨둔 책", "entered": false, "image_url": "..." },
+  "scene": { "id": 2, "name": "조금 늦은 안부", "entered": false, "image_url": "..." },
   "scenes": [
-    { "id": 1, "name": "마지막 손님", "image_url": "..." },
-    { "id": 2, "name": "남겨둔 책", "image_url": "..." },
+    { "id": 1, "name": "남겨진 것", "image_url": "..." },
+    { "id": 2, "name": "조금 늦은 안부", "image_url": "..." },
     { "id": 3, "name": "쓰지 못한 한 문장", "image_url": null },
-    { "id": 4, "name": "문을 닫기 전에", "image_url": null }
+    { "id": 4, "name": "21:00", "image_url": null }
   ],
   "messages": [ /* 아래 턴 응답의 messages와 같은 형태, turn=0(오프닝 대사) 포함 */ ],
   "card_available": false,
@@ -118,7 +118,7 @@
   ],
   "completed_turns": 5,
   "story_time": "20:41",
-  "scene": { "id": 2, "name": "남겨둔 책", "entered": false, "image_url": "..." },
+  "scene": { "id": 2, "name": "조금 늦은 안부", "entered": false, "image_url": "..." },
   "card_available": false,
   "is_final_turn": false
 }
@@ -147,7 +147,7 @@
       "message_id": "m_014",
       "turn": 5,
       "story_time": "20:41",
-      "scene_name": "남겨둔 책",
+      "scene_name": "조금 늦은 안부",
       "quote": "플레이어가 실제로 입력한 원문",
       "effect": "이 말이 마지막 부탁의 바탕이 되었다."
     }

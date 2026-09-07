@@ -99,13 +99,28 @@ _finalize_turn12() (app/api/turns.py)
 
 ## 진행 체크리스트
 
-- [ ] 1. `llm/contracts.py` — `ImageSceneSpec` 스키마 추가
-- [ ] 2. `llm/prompts.py` — 엔딩 시스템 프롬프트에 연출 필드 스펙/제약 안내 추가
-- [ ] 3. `engine/ending.py` — 검증 함수 + 병합 함수 추가
-- [ ] 4. `images/prompts.py` — 연출 슬롯 문구 매핑 + ENDING_TEMPLATE 확장 + STYLE_BLOCK 구도 문구 분리
-- [ ] 5. `api/turns.py`, `api/ending.py` — 호출부 배선 변경
-- [ ] 6. 신규 테스트 작성, 전체 테스트 스위트 통과 확인
+- [x] 1. `llm/contracts.py` — `ImageSceneSpecOut` 스키마 추가(값은 permissive `str`, 화이트리스트 검증은 engine/ending.py에서)
+- [x] 2. `llm/prompts.py` — `IMAGE_SCENE_SPEC_INSTRUCTIONS` + `ENDING_RESPONSE_FORMAT_NOTE` 확장으로 연출 필드 스펙/제약 안내 추가
+- [x] 3. `engine/ending.py` — `validate_image_scene_spec()`(화이트리스트+character_action 전제조건 검증) 추가, `compute_ending_slots()`는 사실관계(location/props/distance)만 남기고 posture/expression 제거, `finalize_ending_text()`가 `(evidence, direction)` 튜플을 반환하도록 확장
+- [x] 4. `images/prompts.py` — `STYLE_BLOCK`을 `STYLE_BLOCK_BASE`+`STYLE_FRAMING_DEFAULT`로 분리(엔딩은 기본 구도 문구를 안 씀), camera_shot/camera_angle/character_action/gaze/composition/mood/lighting 문구 사전 추가, `ending_prompt()`를 keyword-only 10개 인자로 확장
+- [x] 5. `api/turns.py`, `api/end.py`, `api/ending.py` — `finalize_ending_text()`의 direction과 `compute_ending_slots()`의 facts를 병합해 `_run_ending_image_job`에 전달하도록 배선 변경. 이미지 재시도(`api/ending.py`)는 LLM을 다시 안 부르므로 `DEFAULT_DIRECTION`으로 폴백(연출 값을 DB에 저장하지 않기로 한 설계상 트레이드오프, PLAN 문서에 명시)
+- [x] 6. 신규 테스트 작성(`tests/test_ending_image_scene_spec.py` 9개 + 기존 `test_image_prompts.py` 시그니처 갱신), 전체 테스트 스위트 130개 통과 확인
 - [ ] 7. 사용자에게 실제 플레이 테스트 요청(이미지 다양성 체감 확인)
 - [ ] 8. 완료 후 `story-v0.4-redesign` 브랜치에 커밋
+
+## 구현 중 확정한 세부 사항 (계획 대비 변경/보강)
+
+- `character_action` 화이트리스트를 다음 8개로 확정: `turning_back_for_last_look`(기본값, 항상 허용),
+  `holding_the_book_close`(book_owner=="seoyun"일 때만), `offering_the_card`(card.written일 때만),
+  `key_ring_in_hand`, `adjusting_the_apron_pocket`(항상 허용), `glancing_toward_departing_player`
+  (player_present==False일 때만), `waving_softly`(player_present==True일 때만),
+  `hands_empty_at_sides`(book_owner·bookmark_owner 모두 "player"일 때만).
+- `ImageSceneSpecOut`의 필드를 Pydantic `Literal`이 아니라 평범한 `str`로 둔 이유: Literal로 강제하면
+  후보 밖 값이 나올 때 `LLMEndingOutput` 전체가 `ValidationError`로 죽어 title/body까지 강등되므로,
+  대신 관대하게 파싱하고 `engine/ending.py`에서 조용히 기본값으로 대체하는 방식을 택했다.
+- 이미지 재시도 엔드포인트(`POST /sessions/{id}/ending/image/retry`)는 원래 생성 때 LLM이 고른 연출을
+  DB에 저장하지 않으므로 재시도 시 항상 `DEFAULT_DIRECTION`(기본 연출)으로 재생성된다. 필요하면
+  나중에 연출 값을 저장하는 JSONB 컬럼을 추가할 수 있으나, 이번 작업 범위에서는 생략(DB migration
+  없이 가는 것이 원래 목표였음).
 
 이 체크리스트를 진행하면서 완료된 항목은 이 파일에서 `[x]`로 갱신한다.

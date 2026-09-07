@@ -26,10 +26,26 @@ class ParseResult(BaseModel):
     usage: dict | None = None  # {"prompt_tokens", "completion_tokens", "total_tokens"}
 
 
+class ImageSceneSpecOut(BaseModel):
+    """엔딩 이미지 연출 제안. 값은 자유 문자열로 받고, 화이트리스트 검증은
+    engine/ending.py에서 한다 — 여기서 Literal로 강제하면 후보 밖 값이
+    ValidationError를 일으켜 title/body까지 통째로 강등되기 때문이다.
+    """
+
+    camera_shot: str = ""
+    camera_angle: str = ""
+    character_action: str = ""
+    gaze: str = ""
+    composition: str = ""
+    mood: str = ""
+    lighting: str = ""
+
+
 class LLMEndingOutput(BaseModel):
     title: str
     body: str
     unresolved: list[str] = Field(default_factory=list)
+    image_scene_spec: ImageSceneSpecOut = Field(default_factory=ImageSceneSpecOut)
 
 
 class EndingParseResult(BaseModel):

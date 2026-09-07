@@ -6,7 +6,7 @@ from app.api.common import get_or_create_card, serialize_card
 from app.api.turns import _get_owned_session, _run_ending_image_job
 from app.auth import require_code_id
 from app.db import get_db
-from app.engine.ending import compute_ending_slots
+from app.engine.ending import DEFAULT_DIRECTION, compute_ending_slots
 from app.models import Image, ImageJob
 from app.schemas import EndingImageRetryResponse, EndingImageState, EndingResponse, EvidenceItem
 
@@ -67,7 +67,9 @@ def retry_ending_image(
 
     card = get_or_create_card(db, session.id)
     portrait = db.get(Image, session.portrait_image_id)
-    slots = compute_ending_slots(session, card)
+    # 재시도는 LLM을 다시 부르지 않는다 — 원래 생성 때 고른 연출(camera/action 등)은
+    # 저장해두지 않으므로 기본 연출로 재생성한다 (docs/PLAN_ending_image_hybrid.md 참고).
+    slots = {**compute_ending_slots(session, card), **DEFAULT_DIRECTION}
     session.ending_image_id = None
     db.commit()
 

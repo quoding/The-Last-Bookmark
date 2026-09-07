@@ -219,7 +219,28 @@ ENDING_FORBIDDEN_NOTES = [
 ENDING_RESPONSE_FORMAT_NOTE = (
     "다음 JSON 형식으로만 답한다. 다른 텍스트를 앞뒤에 붙이지 않는다.\n"
     '{"title": "8~20자 내외 제목", "body": "350~550자 한국어 본문", '
-    '"unresolved": ["미해결로 남은 것 0~2개"]}'
+    '"unresolved": ["미해결로 남은 것 0~2개"], '
+    '"image_scene_spec": {"camera_shot": "...", "camera_angle": "...", '
+    '"character_action": "...", "gaze": "...", "composition": "...", '
+    '"mood": "...", "lighting": "..."}}'
+)
+
+IMAGE_SCENE_SPEC_INSTRUCTIONS = (
+    "image_scene_spec은 엔딩 이미지의 연출을 고르는 것이다. 아래 후보 중에서만 하나씩 고른다. "
+    "후보에 없는 값이나 새로운 사건을 지어내면 안 된다 — 화면에 무엇이 있는지(장소, 실제 소품, "
+    "플레이어가 자리에 있는지)는 서버가 이미 정해두었으므로 여기서는 오직 '어떻게 보여줄지'만 고른다.\n"
+    "- camera_shot: close / medium / full / wide\n"
+    "- camera_angle: eye_level / slightly_high / slightly_low / side\n"
+    "- character_action: turning_back_for_last_look / holding_the_book_close(아직 책을 안 줬을 때만) / "
+    "offering_the_card(카드를 직접 썼을 때만) / key_ring_in_hand / adjusting_the_apron_pocket / "
+    "glancing_toward_departing_player(플레이어가 이미 떠났을 때만) / waving_softly(플레이어가 아직 있을 때만) / "
+    "hands_empty_at_sides(책과 책갈피를 모두 이미 줬을 때만)\n"
+    "- gaze: player / downward / away / object\n"
+    "- composition: centered / left_weighted / right_weighted / negative_space\n"
+    "- mood: warm / restrained / unresolved / distant / relieved\n"
+    "- lighting: warm_interior / blue_rain / mixed / dim_closing\n"
+    "괄호로 조건이 적힌 character_action은 그 조건이 실제로 맞을 때만 고른다. 확신이 없으면 "
+    "turning_back_for_last_look을 고른다."
 )
 
 
@@ -233,7 +254,15 @@ def build_ending_system_prompt(session: Session, evidence_quotes: list[str], car
             "근거로 삼을 수 있는 실제 대화 원문:\n" + quotes_block,
         ]
     )
-    return "\n\n".join([PERSONA_YAML, ending_context, "금지 사항:\n" + forbidden, ENDING_RESPONSE_FORMAT_NOTE])
+    return "\n\n".join(
+        [
+            PERSONA_YAML,
+            ending_context,
+            "금지 사항:\n" + forbidden,
+            IMAGE_SCENE_SPEC_INSTRUCTIONS,
+            ENDING_RESPONSE_FORMAT_NOTE,
+        ]
+    )
 
 
 def build_ending_messages(session: Session, evidence_quotes: list[str], card=None) -> list[dict]:

@@ -41,11 +41,11 @@ def end_early(
     session.completed_at = datetime.now(timezone.utc)
 
     card = get_or_create_card(db, session.id)
-    finalize_ending_text(db, session, llm_client, card)
+    _evidence, direction = finalize_ending_text(db, session, llm_client, card)
     db.flush()
 
     portrait = db.get(Image, session.portrait_image_id)
-    slots = compute_ending_slots(session, card)
+    slots = {**compute_ending_slots(session, card), **direction}
     background_tasks.add_task(_run_ending_image_job, session.id, portrait.file_path, slots)
 
     response = EndEarlyResponse(status="ended_early")

@@ -4,13 +4,20 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from app.api.common import build_scene_state, get_or_create_card, is_card_available, serialize_message
-from app.api.deps import get_image_generator
+from app.api.common import (
+    build_scene_state,
+    get_or_create_card,
+    get_scene_image_url,
+    is_card_available,
+    serialize_message,
+)
+from app.api.deps import build_image_generator, get_image_generator
+from app.api.idempotency import get_cached_response, store_response
 from app.auth import issue_token, require_code_id, verify_invite_code
 from app.config import get_settings
 from app.db import get_db
 from app.engine.opening import OPENING_MESSAGES
-from app.engine.scene import get_initial_scene
+from app.engine.scene import SCENES, get_initial_scene
 from app.images.openai_images import ImageGenerator
 from app.images.presets import InvalidPresetError, to_english_fragments, validate_selection
 from app.images.service import generate_portrait, generate_scene_image
@@ -19,8 +26,11 @@ from app.models import Session as SessionModel
 from app.schemas import (
     AuthVerifyRequest,
     AuthVerifyResponse,
+    PortraitRetryRequest,
     PortraitRetryResponse,
     PortraitStatus,
+    PresetSelection,
+    SceneImageEntry,
     SceneState,
     SessionCreateRequest,
     SessionCreateResponse,
@@ -107,22 +117,26 @@ def create_session(
     db: DbSession = Depends(get_db),
     generator: ImageGenerator = Depends(get_image_generator),
 ):
+    cached = get_cached_response(db, body.request_id)
+    if cached is not None:
+        return SessionCreateResponse(**cached)
+
     selection = body.presets.model_dump()
     try:
         validate_selection(selection)
     except InvalidPresetError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    total_sessions = db.execute(select(func.count()).select_from(SessionModel)).scalar_one()
-    if total_sessions >= get_settings().image_budget_sessions:
-        raise HTTPException(status_code=403, detail="이미지 생성 예산을 초과해 새 회차를 시작할 수 없습니다.")
+    existing_session_count = db.execute(
+        select(func.count()).select_from(SessionModel).where(SessionModel.code_id == code_id)
+    ).scalar_one()
+    if existing_session_count >= get_settings().image_budget_sessions:
+        raise HTTPException(
+            status_code=403,
+            detail=f"이 코드로 저장할 수 있는 회차는 최대 {get_settings().image_budget_sessions}개입니다.",
+        )
 
-    next_index = (
-        db.execute(
-            select(func.count()).select_from(SessionModel).where(SessionModel.code_id == code_id)
-        ).scalar_one()
-        + 1
-    )
+    next_index = existing_session_count + 1
 
     session = SessionModel(code_id=code_id, index=next_index, presets=selection)
     db.add(session)
@@ -135,7 +149,7 @@ def create_session(
 
     fragments = to_english_fragments(selection)
     try:
-        image = generate_portrait(db, generator, session.id, fragments)
+        image = generate_portrait(db, generator, session.id, fragments, code_id)
         session.portrait_image_id = image.id
         job.status = "done"
         job.image_id = image.id
@@ -146,19 +160,28 @@ def create_session(
     db.commit()
     db.refresh(session)
 
-    return SessionCreateResponse(
+    response = SessionCreateResponse(
         id=str(session.id), index=session.index, portrait=_portrait_status(session, db)
     )
+    store_response(db, body.request_id, session.id, "sessions", response.model_dump())
+    db.commit()
+    return response
 
 
 @router.post("/sessions/{session_id}/portrait/retry", response_model=PortraitRetryResponse)
 def retry_portrait(
     session_id: str,
+    body: PortraitRetryRequest,
     code_id: str = Depends(require_code_id),
     db: DbSession = Depends(get_db),
     generator: ImageGenerator = Depends(get_image_generator),
 ):
     session = _get_owned_session(db, code_id, session_id)
+
+    cached = get_cached_response(db, body.request_id)
+    if cached is not None:
+        return PortraitRetryResponse(**cached)
+
     if session.portrait_confirmed:
         raise HTTPException(status_code=409, detail="이미 확정된 초상화는 다시 그릴 수 없습니다.")
 
@@ -173,7 +196,7 @@ def retry_portrait(
 
     fragments = to_english_fragments(session.presets)
     try:
-        image = generate_portrait(db, generator, session.id, fragments)
+        image = generate_portrait(db, generator, session.id, fragments, code_id)
         session.portrait_image_id = image.id
         job.status = "done"
         job.image_id = image.id
@@ -187,21 +210,25 @@ def retry_portrait(
 
     db.commit()
     db.refresh(session)
-    return PortraitRetryResponse(portrait=_portrait_status(session, db))
+    response = PortraitRetryResponse(portrait=_portrait_status(session, db))
+    store_response(db, body.request_id, session.id, "portrait_retry", response.model_dump())
+    db.commit()
+    return response
 
 
 def _run_background_scene_jobs(session_id: uuid.UUID, portrait_path: str, scene_ids: list[int]):
     from app.db import get_sessionmaker
 
     db = get_sessionmaker()()
-    generator = get_image_generator()
+    session_row = db.get(SessionModel, session_id)
+    generator = build_image_generator(session_row.code_id)
     try:
         for scene_id in scene_ids:
             job = ImageJob(session_id=session_id, kind="scene", scene_id=scene_id, status="pending")
             db.add(job)
             db.flush()
             try:
-                image = generate_scene_image(db, generator, session_id, scene_id, portrait_path)
+                image = generate_scene_image(db, generator, session_id, scene_id, portrait_path, session_row.code_id)
                 job.status = "done"
                 job.image_id = image.id
             except Exception as exc:  # noqa: BLE001
@@ -241,7 +268,7 @@ def start_session(
             db.add(job1)
             db.flush()
             try:
-                image = generate_scene_image(db, generator, session.id, 1, portrait_path)
+                image = generate_scene_image(db, generator, session.id, 1, portrait_path, code_id)
                 job1.status = "done"
                 job1.image_id = image.id
             except Exception as exc:  # noqa: BLE001
@@ -286,14 +313,26 @@ def get_session_state(
     scene_state = build_scene_state(db, session.id, session.scene_id, entered=False)
     card = get_or_create_card(db, session.id)
 
+    scenes = [
+        SceneImageEntry(
+            id=scene_id,
+            name=SCENES[scene_id]["name"],
+            image_url=get_scene_image_url(db, session.id, scene_id),
+        )
+        for scene_id in sorted(SCENES)
+    ]
+
     return SessionStateResponse(
         id=str(session.id),
         status=session.status,
         completed_turns=session.completed_turns,
         story_time=session.story_time,
         scene=scene_state,
+        scenes=scenes,
         messages=[serialize_message(m) for m in messages],
         card_available=is_card_available(session, card),
         is_final_turn=session.completed_turns >= 12,
         portrait=_portrait_status(session, db),
+        portrait_confirmed=session.portrait_confirmed,
+        presets=PresetSelection(**session.presets),
     )

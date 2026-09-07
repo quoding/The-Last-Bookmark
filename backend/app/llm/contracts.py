@@ -23,6 +23,7 @@ class LLMTurnOutput(BaseModel):
 class ParseResult(BaseModel):
     output: LLMTurnOutput
     degraded: bool = False  # True면 proposed_events를 못 뽑아 reply만 살렸다는 뜻
+    usage: dict | None = None  # {"prompt_tokens", "completion_tokens", "total_tokens"}
 
 
 class LLMEndingOutput(BaseModel):
@@ -34,6 +35,7 @@ class LLMEndingOutput(BaseModel):
 class EndingParseResult(BaseModel):
     output: LLMEndingOutput
     degraded: bool = False
+    usage: dict | None = None
 
 
 FALLBACK_ENDING_TITLE = "문을 닫은 뒤에 남은 것"

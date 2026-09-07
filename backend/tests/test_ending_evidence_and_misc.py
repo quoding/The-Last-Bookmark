@@ -11,7 +11,7 @@ def _full_preset_selection():
 
 def _start_session(client, auth_headers):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
     client.post(f"/api/sessions/{session_id}/start", headers=auth_headers)
@@ -88,12 +88,12 @@ def test_image_budget_blocks_new_session(client, auth_headers, monkeypatch):
     get_settings.cache_clear()
     try:
         first = client.post(
-            "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+            "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
         )
         assert first.status_code == 200
 
         second = client.post(
-            "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+            "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
         )
         assert second.status_code == 403
     finally:
@@ -102,7 +102,7 @@ def test_image_budget_blocks_new_session(client, auth_headers, monkeypatch):
 
 def test_portrait_retry_after_failure_does_not_consume_quota(client, auth_headers, fake_image_generator, monkeypatch):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
 
@@ -114,13 +114,21 @@ def test_portrait_retry_after_failure_does_not_consume_quota(client, auth_header
         raise RuntimeError("이미지 생성 실패(테스트)")
 
     monkeypatch.setattr(fake_image_generator, "generate", _failing_generate)
-    r1 = client.post(f"/api/sessions/{session_id}/portrait/retry", headers=auth_headers)
+    r1 = client.post(
+        f"/api/sessions/{session_id}/portrait/retry",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
     assert r1.json()["portrait"]["status"] == "failed"
     assert r1.json()["portrait"]["retry_count"] == 1  # 성공한 초상화를 스스로 다시 그리려던 시도라 횟수를 쓴다
 
     # 방금 실패했으니 그 실패를 만회하려는 재시도는 남은 횟수를 쓰지 않는다
     monkeypatch.setattr(fake_image_generator, "generate", original_generate)
-    r2 = client.post(f"/api/sessions/{session_id}/portrait/retry", headers=auth_headers)
+    r2 = client.post(
+        f"/api/sessions/{session_id}/portrait/retry",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
     assert r2.json()["portrait"]["status"] == "done"
     assert r2.json()["portrait"]["retry_count"] == 1
 

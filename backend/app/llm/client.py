@@ -35,24 +35,31 @@ class LLMClient(Protocol):
 
 
 class OpenAILLMClient:
-    def __init__(self) -> None:
+    def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
         self._model = settings.llm_model
-        self._api_key = settings.llm_api_key
+        self._api_key = api_key or settings.llm_api_key
 
     def _client(self):
         from openai import OpenAI
 
         return OpenAI(api_key=self._api_key)
 
-    def _call_once(self, messages: list[dict]) -> str:
+    def _call_once(self, messages: list[dict]) -> tuple[str, dict | None]:
         client = self._client()
         response = client.chat.completions.create(
             model=self._model,
             messages=messages,
             response_format={"type": "json_object"},
         )
-        return response.choices[0].message.content or ""
+        usage = None
+        if response.usage is not None:
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+        return response.choices[0].message.content or "", usage
 
     def generate_turn(
         self, session: Session, recent_messages: list, player_input: str, card=None
@@ -60,26 +67,37 @@ class OpenAILLMClient:
         messages = build_messages(session, recent_messages, player_input, card)
 
         last_raw = ""
+        last_usage: dict | None = None
         for attempt in range(MAX_RETRIES + 1):
-            raw = self._call_once(messages)
-            last_raw = raw
+            raw, usage = self._call_once(messages)
+            last_raw, last_usage = raw, usage
             try:
-                return validate_or_raise(raw)
+                result = validate_or_raise(raw)
+                result.usage = usage
+                return result
             except LLMOutputError as exc:
                 logger.warning("LLM 구조화 출력 검증 실패 (시도 %d/%d): %s", attempt + 1, MAX_RETRIES + 1, exc)
 
         logger.error("LLM 구조화 출력이 %d회 재시도 후에도 실패해 대사만 살립니다.", MAX_RETRIES + 1)
-        return degrade_to_reply_only(last_raw)
+        result = degrade_to_reply_only(last_raw)
+        result.usage = last_usage
+        return result
 
     def generate_ending(self, session: Session, evidence_quotes: list[str], card=None) -> EndingParseResult:
         messages = build_ending_messages(session, evidence_quotes, card)
+        last_usage: dict | None = None
         for attempt in range(MAX_RETRIES + 1):
-            raw = self._call_once(messages)
+            raw, usage = self._call_once(messages)
+            last_usage = usage
             try:
-                return validate_ending_or_raise(raw)
+                result = validate_ending_or_raise(raw)
+                result.usage = usage
+                return result
             except LLMOutputError as exc:
                 logger.warning(
                     "엔딩 LLM 출력 검증 실패 (시도 %d/%d): %s", attempt + 1, MAX_RETRIES + 1, exc
                 )
         logger.error("엔딩 생성이 %d회 재시도 후에도 실패해 대체 문구를 사용합니다.", MAX_RETRIES + 1)
-        return degrade_ending_to_fallback()
+        result = degrade_ending_to_fallback()
+        result.usage = last_usage
+        return result

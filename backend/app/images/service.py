@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.images import prompts
 from app.images.openai_images import ContentPolicyRefused, ImageGenerator
 from app.models import Image, ImageJob
+from app.usage import log_image_usage
 
 
 def _storage_dir() -> Path:
@@ -30,10 +31,16 @@ def save_image_bytes(session_id: uuid.UUID, kind: str, data: bytes) -> Path:
 
 
 def generate_portrait(
-    db: DbSession, generator: ImageGenerator, session_id: uuid.UUID, preset_fragments: dict[str, str]
+    db: DbSession,
+    generator: ImageGenerator,
+    session_id: uuid.UUID,
+    preset_fragments: dict[str, str],
+    code_id: str | None = None,
 ) -> Image:
     prompt = prompts.portrait_prompt(preset_fragments)
-    data = generator.generate(prompt)
+    data, usage = generator.generate(prompt)
+    if code_id is not None:
+        log_image_usage(db, code_id, session_id, get_settings().image_model, usage)
     file_path = save_image_bytes(session_id, "portrait", data)
     image = Image(session_id=session_id, kind="portrait", scene_id=None, file_path=str(file_path))
     db.add(image)
@@ -47,9 +54,12 @@ def generate_scene_image(
     session_id: uuid.UUID,
     scene_id: int,
     portrait_file_path: str,
+    code_id: str | None = None,
 ) -> Image:
     prompt = prompts.scene_prompt(scene_id)
-    data = generator.edit(prompt, [portrait_file_path])
+    data, usage = generator.edit(prompt, [portrait_file_path])
+    if code_id is not None:
+        log_image_usage(db, code_id, session_id, get_settings().image_model, usage)
     file_path = save_image_bytes(session_id, f"scene{scene_id}", data)
     image = Image(session_id=session_id, kind="scene", scene_id=scene_id, file_path=str(file_path))
     db.add(image)
@@ -63,9 +73,12 @@ def generate_ending_image(
     session_id: uuid.UUID,
     portrait_file_path: str,
     slots: dict[str, str],
+    code_id: str | None = None,
 ) -> Image:
     prompt = prompts.ending_prompt(**slots)
-    data = generator.edit(prompt, [portrait_file_path])
+    data, usage = generator.edit(prompt, [portrait_file_path])
+    if code_id is not None:
+        log_image_usage(db, code_id, session_id, get_settings().image_model, usage)
     file_path = save_image_bytes(session_id, "ending", data)
     image = Image(session_id=session_id, kind="ending", scene_id=None, file_path=str(file_path))
     db.add(image)
@@ -79,6 +92,7 @@ def run_image_job(
     job: ImageJob,
     *,
     session_id: uuid.UUID,
+    code_id: str | None = None,
     portrait_file_path: str | None = None,
     preset_fragments: dict[str, str] | None = None,
     ending_slots: dict[str, str] | None = None,
@@ -88,12 +102,14 @@ def run_image_job(
         return job
     try:
         if job.kind == "portrait":
-            image = generate_portrait(db, generator, session_id, preset_fragments or {})
+            image = generate_portrait(db, generator, session_id, preset_fragments or {}, code_id)
         elif job.kind == "scene":
-            image = generate_scene_image(db, generator, session_id, job.scene_id, portrait_file_path or "")
+            image = generate_scene_image(
+                db, generator, session_id, job.scene_id, portrait_file_path or "", code_id
+            )
         elif job.kind == "ending":
             image = generate_ending_image(
-                db, generator, session_id, portrait_file_path or "", ending_slots or {}
+                db, generator, session_id, portrait_file_path or "", ending_slots or {}, code_id
             )
         else:
             raise ValueError(f"알 수 없는 이미지 종류: {job.kind}")

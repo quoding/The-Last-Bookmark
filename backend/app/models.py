@@ -200,3 +200,26 @@ class RequestLog(Base):
     endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
     response_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ApiUsageLog(Base):
+    """LLM·이미지 호출마다 실제 토큰 사용량을 기록한다.
+
+    비용(원화·달러)은 여기서 계산해 저장하지 않는다. 단가가 바뀔 수 있고
+    LLM_MODEL의 실제 단가가 아직 확정되지 않았으므로, 원시 토큰 수만
+    남기고 비용 계산은 관리자 페이지에서 조회 시점에 한다.
+    """
+
+    __tablename__ = "api_usage_logs"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    code_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # llm / image
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    text_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    image_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cached_text_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cached_image_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -91,9 +91,9 @@ class _ScriptedClient(OpenAILLMClient):
         self._script = list(script)
         self._calls = 0
 
-    def _call_once(self, messages: list[dict]) -> str:
+    def _call_once(self, messages: list[dict]):
         self._calls += 1
-        return self._script.pop(0)
+        return self._script.pop(0), {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
 
 
 def test_retries_on_invalid_json_then_succeeds():

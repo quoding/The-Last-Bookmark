@@ -43,7 +43,12 @@ class PresetSelection(BaseModel):
 
 
 class SessionCreateRequest(BaseModel):
+    request_id: str
     presets: PresetSelection
+
+
+class PortraitRetryRequest(BaseModel):
+    request_id: str
 
 
 class PortraitStatus(BaseModel):
@@ -146,15 +151,31 @@ class EndingResponse(BaseModel):
     image: EndingImageState
 
 
+class SceneImageEntry(BaseModel):
+    id: int
+    name: str
+    image_url: str | None = None
+
+
 class SessionStateResponse(BaseModel):
-    """GET /api/sessions/{id} — 회차 복원."""
+    """GET /api/sessions/{id} — 회차 복원.
+
+    다른 브라우저·기기에서 재진입해도 같은 상태를 그대로 보여주기 위한 필드:
+    - portrait_confirmed/presets: 외형만 고르고 "이 모습으로 시작하기"를 누르기
+      전에 이탈한 회차인지 구분해 올바른 화면(초상화 확인/대화)으로 보낸다.
+    - scenes: 지금까지 지나온 모든 장면의 이미지를 한 번에 돌려줘 완료 회차를
+      다른 브라우저에서 열어도 장면 4장을 전부 다시 볼 수 있게 한다.
+    """
 
     id: str
     status: str
     completed_turns: int
     story_time: str
     scene: SceneState
+    scenes: list[SceneImageEntry]
     messages: list[MessageOut]
     card_available: bool
     is_final_turn: bool
     portrait: PortraitStatus
+    portrait_confirmed: bool
+    presets: PresetSelection

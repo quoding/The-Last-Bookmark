@@ -10,13 +10,13 @@ class FakeImageGenerator:
         self.generate_calls: list[str] = []
         self.edit_calls: list[tuple[str, list[str]]] = []
 
-    def generate(self, prompt: str) -> bytes:
+    def generate(self, prompt: str):
         self.generate_calls.append(prompt)
-        return b"fake-portrait-bytes"
+        return b"fake-portrait-bytes", {"text_tokens": 5, "output_tokens": 50}
 
-    def edit(self, prompt: str, reference_image_paths: list[str]) -> bytes:
+    def edit(self, prompt: str, reference_image_paths: list[str]):
         self.edit_calls.append((prompt, reference_image_paths))
-        return b"fake-scene-bytes"
+        return b"fake-scene-bytes", {"text_tokens": 8, "image_tokens": 100, "output_tokens": 50}
 
 
 def test_scene_prompt_includes_style_and_negative_for_every_scene():

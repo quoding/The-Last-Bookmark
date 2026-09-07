@@ -60,11 +60,11 @@ def db_session(engine):
 @pytest.fixture
 def fake_image_generator():
     class _FakeGenerator:
-        def generate(self, prompt: str) -> bytes:
-            return b"fake-generated-bytes"
+        def generate(self, prompt: str):
+            return b"fake-generated-bytes", {"text_tokens": 10, "output_tokens": 100}
 
-        def edit(self, prompt: str, reference_image_paths: list[str]) -> bytes:
-            return b"fake-edited-bytes"
+        def edit(self, prompt: str, reference_image_paths: list[str]):
+            return b"fake-edited-bytes", {"text_tokens": 15, "image_tokens": 200, "output_tokens": 100}
 
     return _FakeGenerator()
 
@@ -94,7 +94,9 @@ class ScriptedLLMClient:
             narration=spec.get("narration", ""),
             proposed_events=spec.get("proposed_events", []),
         )
-        return self._ParseResult(output=output, degraded=False)
+        return self._ParseResult(
+            output=output, degraded=False, usage={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        )
 
     def generate_ending(self, session, evidence_quotes, card=None):
         spec = self.ending_response or {
@@ -103,7 +105,9 @@ class ScriptedLLMClient:
             "unresolved": [],
         }
         output = self._LLMEndingOutput(**spec)
-        return self._EndingParseResult(output=output, degraded=False)
+        return self._EndingParseResult(
+            output=output, degraded=False, usage={"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300}
+        )
 
 
 @pytest.fixture

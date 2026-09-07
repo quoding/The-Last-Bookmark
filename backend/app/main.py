@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import card, end, ending, images, sessions, turns
+from app.api import admin, card, end, ending, images, sessions, turns
 from app.config import get_settings
 
 app = FastAPI(title="마지막 책갈피 API")
@@ -21,6 +21,7 @@ app.include_router(turns.router)
 app.include_router(card.router)
 app.include_router(end.router)
 app.include_router(ending.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")

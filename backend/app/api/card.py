@@ -16,12 +16,14 @@ from app.api.deps_llm import get_llm_client
 from app.api.idempotency import get_cached_response, store_response
 from app.api.turns import _finalize_turn12, _get_owned_session
 from app.auth import require_code_id
+from app.config import get_settings
 from app.db import get_db
 from app.engine.scene import get_turn_info
 from app.engine.state import ProposedEvent, confirm_proposed_events, record_card_for_event
 from app.llm.client import LLMClient
 from app.models import ConfirmedEvent, Message
 from app.schemas import CardSubmitRequest, TurnResponse
+from app.usage import log_llm_usage
 
 router = APIRouter(prefix="/api")
 
@@ -84,6 +86,7 @@ def submit_card(
     db.add(Message(session_id=session.id, turn=new_turn, kind="record", record_type="memory", text=record_text))
 
     llm_result = llm_client.generate_turn(session, recent_messages, synthetic_player_input, card)
+    log_llm_usage(db, code_id, session.id, get_settings().llm_model, llm_result.usage)
     reply_text = llm_result.output.reply
     narration_text = llm_result.output.narration
 

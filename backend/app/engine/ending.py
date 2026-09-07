@@ -10,9 +10,11 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from app.config import get_settings
 from app.engine.scene import SCENES, get_turn_info
 from app.models import Card, ConfirmedEvent, Message
 from app.models import Session as SessionModel
+from app.usage import log_llm_usage
 
 # 근거로 보여줄 만한 이벤트 -> 결말에 어떻게 작용했는지 한 문장.
 EVIDENCE_EFFECT_TEXT: dict[str, str] = {
@@ -116,6 +118,7 @@ def finalize_ending_text(db: DbSession, session: SessionModel, llm_client, card:
     evidence = select_evidence(db, session)
     quotes = [e.quote for e in evidence]
     result = llm_client.generate_ending(session, quotes, card)
+    log_llm_usage(db, session.code_id, session.id, get_settings().llm_model, result.usage)
 
     session.ending_title = result.output.title
     session.ending_body = result.output.body

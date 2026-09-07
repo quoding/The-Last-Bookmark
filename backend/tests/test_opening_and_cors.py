@@ -5,6 +5,8 @@ Codex의 프론트 통합 대조(worklog_codex, INTEGRATION.md)에서 지적된 
 2. 실제 API 서버 CORS 연결 검증 필요
 """
 
+import uuid
+
 from app.images.presets import PRESET_AXES, PRESETS
 
 
@@ -14,7 +16,7 @@ def _full_preset_selection():
 
 def test_opening_messages_seeded_on_start_and_restorable(client, auth_headers):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
     client.post(f"/api/sessions/{session_id}/start", headers=auth_headers)
@@ -29,7 +31,7 @@ def test_opening_messages_seeded_on_start_and_restorable(client, auth_headers):
 
 def test_opening_messages_not_duplicated_on_repeated_start_call(client, auth_headers):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
     client.post(f"/api/sessions/{session_id}/start", headers=auth_headers)

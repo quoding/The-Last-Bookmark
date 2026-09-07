@@ -15,7 +15,7 @@ def _full_preset_selection():
 
 def _start_session(client, auth_headers):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
     client.post(f"/api/sessions/{session_id}/start", headers=auth_headers)

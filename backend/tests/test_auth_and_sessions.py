@@ -1,3 +1,5 @@
+import uuid
+
 from app.images.presets import PRESET_AXES, PRESETS
 
 
@@ -22,7 +24,7 @@ def test_sessions_require_auth(client):
 
 
 def test_create_session_generates_portrait_synchronously(client, auth_headers):
-    resp = client.post("/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers)
+    resp = client.post("/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert body["index"] == 1
@@ -33,7 +35,9 @@ def test_create_session_generates_portrait_synchronously(client, auth_headers):
 def test_create_session_rejects_incomplete_presets(client, auth_headers):
     incomplete = _full_preset_selection()
     del incomplete["glasses"]
-    resp = client.post("/api/sessions", json={"presets": incomplete}, headers=auth_headers)
+    resp = client.post(
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": incomplete}, headers=auth_headers
+    )
     assert resp.status_code == 422  # pydantic이 필수 필드 누락을 먼저 걸러낸다
 
 
@@ -41,7 +45,7 @@ def test_sessions_are_isolated_by_code(client):
     resp1 = client.post("/api/auth/verify", json={"code": "testcode"})
     token1 = resp1.json()["token"]
     headers1 = {"Authorization": f"Bearer {token1}"}
-    client.post("/api/sessions", json={"presets": _full_preset_selection()}, headers=headers1)
+    client.post("/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=headers1)
 
     listing = client.get("/api/sessions", headers=headers1)
     assert listing.status_code == 200
@@ -49,8 +53,8 @@ def test_sessions_are_isolated_by_code(client):
 
 
 def test_new_session_does_not_overwrite_previous(client, auth_headers):
-    client.post("/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers)
-    client.post("/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers)
+    client.post("/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers)
+    client.post("/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers)
     listing = client.get("/api/sessions", headers=auth_headers)
     sessions = listing.json()["sessions"]
     assert len(sessions) == 2
@@ -59,24 +63,36 @@ def test_new_session_does_not_overwrite_previous(client, auth_headers):
 
 def test_portrait_retry_limited_to_two(client, auth_headers):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
 
-    r1 = client.post(f"/api/sessions/{session_id}/portrait/retry", headers=auth_headers)
+    r1 = client.post(
+        f"/api/sessions/{session_id}/portrait/retry",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
     assert r1.status_code == 200
     assert r1.json()["portrait"]["retry_count"] == 1
 
-    r2 = client.post(f"/api/sessions/{session_id}/portrait/retry", headers=auth_headers)
+    r2 = client.post(
+        f"/api/sessions/{session_id}/portrait/retry",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
     assert r2.json()["portrait"]["retry_count"] == 2
 
-    r3 = client.post(f"/api/sessions/{session_id}/portrait/retry", headers=auth_headers)
+    r3 = client.post(
+        f"/api/sessions/{session_id}/portrait/retry",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
     assert r3.status_code == 409
 
 
 def test_start_session_generates_scene_one_and_backgrounds_rest(client, auth_headers):
     create_resp = client.post(
-        "/api/sessions", json={"presets": _full_preset_selection()}, headers=auth_headers
+        "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )
     session_id = create_resp.json()["id"]
 

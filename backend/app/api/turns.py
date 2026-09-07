@@ -12,10 +12,11 @@ from app.api.common import (
     is_card_available,
     serialize_message,
 )
-from app.api.deps import get_image_generator
+from app.api.deps import build_image_generator
 from app.api.deps_llm import get_llm_client
 from app.api.idempotency import get_cached_response, store_response
 from app.auth import require_code_id
+from app.config import get_settings
 from app.db import get_db
 from app.engine.ending import compute_ending_slots, finalize_ending_text
 from app.engine.scene import get_turn_info
@@ -26,6 +27,7 @@ from app.llm.client import LLMClient
 from app.models import ConfirmedEvent, Image, ImageJob, Message
 from app.models import Session as SessionModel
 from app.schemas import TurnResponse, TurnSubmitRequest
+from app.usage import log_llm_usage
 
 router = APIRouter(prefix="/api")
 
@@ -45,13 +47,14 @@ def _run_ending_image_job(session_id: uuid.UUID, portrait_path: str, slots: dict
     from app.db import get_sessionmaker
 
     db = get_sessionmaker()()
-    generator = get_image_generator()
+    session_row = db.get(SessionModel, session_id)
+    generator = build_image_generator(session_row.code_id)
     try:
         job = ImageJob(session_id=session_id, kind="ending", scene_id=None, status="pending")
         db.add(job)
         db.flush()
         try:
-            image = generate_ending_image(db, generator, session_id, portrait_path, slots)
+            image = generate_ending_image(db, generator, session_id, portrait_path, slots, session_row.code_id)
             job.status = "done"
             job.image_id = image.id
             session = db.get(SessionModel, session_id)
@@ -118,6 +121,7 @@ def submit_turn(
     db.flush()
 
     llm_result = llm_client.generate_turn(session, recent_messages, body.text, card)
+    log_llm_usage(db, code_id, session.id, get_settings().llm_model, llm_result.usage)
     reply_text = llm_result.output.reply
     narration_text = llm_result.output.narration
 

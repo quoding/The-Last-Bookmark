@@ -18,7 +18,10 @@ RECORD_TEMPLATES: dict[str, tuple[str | None, str | None]] = {
     "help_completed": ("memory", "함께 정리를 도왔다"),
     "book_given": ("memory", "서윤이 마지막으로 골라둔 책을 건넸다"),
     "book_declined": (None, None),
+    "book_returned": ("memory", "결국 책을 다시 서윤에게 돌려주었다"),
     "bookmark_given": ("memory", "파란 책갈피가 당신에게 건네졌다"),
+    "bookmark_declined": (None, None),
+    "bookmark_returned": ("memory", "책갈피를 다시 서윤의 손에 돌려주었다"),
     "future_plan_proposed": (None, None),
     "future_plan_accepted": ("promise", "다음 만남을 약속했다"),
     "contact_exchanged": ("fact", "연락할 방법을 주고받았다"),
@@ -57,9 +60,27 @@ def _apply_book_declined(session: Session, payload: dict) -> bool:
     return session.scene_id >= 2 and session.book_owner == "seoyun"
 
 
+def _apply_book_returned(session: Session, payload: dict) -> bool:
+    if session.book_owner == "player":
+        session.book_owner = "seoyun"
+        return True
+    return False
+
+
 def _apply_bookmark_given(session: Session, payload: dict) -> bool:
     if session.scene_id >= 2 and session.bookmark_owner == "seoyun":
         session.bookmark_owner = "player"
+        return True
+    return False
+
+
+def _apply_bookmark_declined(session: Session, payload: dict) -> bool:
+    return session.scene_id >= 2 and session.bookmark_owner == "seoyun"
+
+
+def _apply_bookmark_returned(session: Session, payload: dict) -> bool:
+    if session.bookmark_owner == "player":
+        session.bookmark_owner = "seoyun"
         return True
     return False
 
@@ -100,7 +121,10 @@ APPLIERS: dict[str, Callable[[Session, dict], bool]] = {
     "help_completed": _apply_help_completed,
     "book_given": _apply_book_given,
     "book_declined": _apply_book_declined,
+    "book_returned": _apply_book_returned,
     "bookmark_given": _apply_bookmark_given,
+    "bookmark_declined": _apply_bookmark_declined,
+    "bookmark_returned": _apply_bookmark_returned,
     "future_plan_proposed": _apply_future_plan_proposed,
     "future_plan_accepted": _apply_future_plan_accepted,
     "contact_exchanged": _apply_contact_exchanged,

@@ -81,6 +81,41 @@ def test_acceptance_after_proposal_becomes_evidence(client, auth_headers, fake_l
     assert any("약속" in effect for effect in effects)
 
 
+def test_book_returned_after_given_becomes_evidence(client, auth_headers, fake_llm_client):
+    """책을 받았다가 다시 돌려주는 것도 확정 사건으로 기록되고 엔딩 근거로 회수된다."""
+    session_id = _start_session(client, auth_headers)
+    for turn in range(1, 4):  # scene_id>=2 조건을 만족시키려고 장면 전환까지 진행
+        _submit_turn(client, auth_headers, session_id, f"{turn}번째 말")
+
+    fake_llm_client.turn_queue.append(
+        {
+            "reply": "이 책, 가져가세요.",
+            "narration": "",
+            "proposed_events": [{"type": "book_given", "payload": {}}],
+        }
+    )
+    _submit_turn(client, auth_headers, session_id, "그 책 저 주시는 거예요?")
+
+    fake_llm_client.turn_queue.append(
+        {
+            "reply": "그럼 다시 받아둘게요.",
+            "narration": "",
+            "proposed_events": [{"type": "book_returned", "payload": {}}],
+        }
+    )
+    _submit_turn(client, auth_headers, session_id, "생각해보니 이건 서윤씨가 갖고 있어야 할 것 같아요")
+
+    resp = client.post(
+        f"/api/sessions/{session_id}/end",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    ending = client.get(f"/api/sessions/{session_id}/ending", headers=auth_headers).json()
+    effects = [e["effect"] for e in ending["evidence"]]
+    assert any("돌려주는" in effect for effect in effects)
+
+
 def test_image_budget_blocks_new_session(client, auth_headers, monkeypatch):
     from app.config import get_settings
 

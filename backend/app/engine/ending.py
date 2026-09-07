@@ -21,7 +21,9 @@ from app.usage import log_llm_usage
 # 근거로 보여줄 만한 이벤트 -> 결말에 어떻게 작용했는지 한 문장.
 EVIDENCE_EFFECT_TEXT: dict[str, str] = {
     "book_given": "이 말이 책을 건네는 결정으로 이어졌다.",
+    "book_returned": "이 말이 책을 다시 돌려주는 결정으로 이어졌다.",
     "bookmark_given": "이 말이 책갈피를 건네는 순간을 만들었다.",
+    "bookmark_returned": "이 말이 책갈피를 다시 돌려주는 결정으로 이어졌다.",
     "future_plan_accepted": "이 말이 다음 만남을 약속하는 계기가 되었다.",
     "contact_exchanged": "이 말이 연락처를 주고받는 계기가 되었다.",
     "help_completed": "이 말이 정리를 함께 마무리하는 데 영향을 주었다.",

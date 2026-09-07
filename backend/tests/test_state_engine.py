@@ -98,3 +98,47 @@ def test_door_locked_is_never_settable_via_proposed_event():
     session = _fresh_session()
     confirm_proposed_events(session, [ProposedEvent("door_locked", {})], turn=12)
     assert session.door_locked is False
+
+
+def test_book_returned_requires_player_to_own_it_first():
+    session = _fresh_session(book_owner="seoyun")
+    confirmed = confirm_proposed_events(session, [ProposedEvent("book_returned", {})], turn=6)
+    assert confirmed == []
+    assert session.book_owner == "seoyun"
+
+
+def test_book_returned_gives_book_back_to_seoyun():
+    session = _fresh_session(book_owner="player")
+    confirmed = confirm_proposed_events(session, [ProposedEvent("book_returned", {})], turn=6)
+    assert session.book_owner == "seoyun"
+    assert {c.event_type for c in confirmed} == {"book_returned"}
+
+
+def test_book_can_round_trip_given_then_returned_then_given_again():
+    session = _fresh_session(scene_id=2, book_owner="seoyun")
+    confirm_proposed_events(session, [ProposedEvent("book_given", {})], turn=4)
+    assert session.book_owner == "player"
+    confirm_proposed_events(session, [ProposedEvent("book_returned", {})], turn=6)
+    assert session.book_owner == "seoyun"
+    confirm_proposed_events(session, [ProposedEvent("book_given", {})], turn=8)
+    assert session.book_owner == "player"
+
+
+def test_bookmark_declined_requires_seoyun_still_owns_it():
+    session = _fresh_session(scene_id=2, bookmark_owner="player")
+    confirmed = confirm_proposed_events(session, [ProposedEvent("bookmark_declined", {})], turn=5)
+    assert confirmed == []
+
+
+def test_bookmark_returned_gives_bookmark_back_to_seoyun():
+    session = _fresh_session(bookmark_owner="player")
+    confirmed = confirm_proposed_events(session, [ProposedEvent("bookmark_returned", {})], turn=6)
+    assert session.bookmark_owner == "seoyun"
+    assert {c.event_type for c in confirmed} == {"bookmark_returned"}
+
+
+def test_bookmark_returned_requires_player_to_own_it_first():
+    session = _fresh_session(bookmark_owner="seoyun")
+    confirmed = confirm_proposed_events(session, [ProposedEvent("bookmark_returned", {})], turn=6)
+    assert confirmed == []
+    assert session.bookmark_owner == "seoyun"

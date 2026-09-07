@@ -67,8 +67,10 @@ def _apply_bookmark_declined(session, payload):
 
 ## 체크리스트
 
-- [ ] 1. `engine/state.py` — 3개 이벤트 appliers + RECORD_TEMPLATES 추가
-- [ ] 2. `llm/prompts.py` — `ALLOWED_EVENT_TYPES`에 3개 추가
-- [ ] 3. `engine/ending.py` — `EVIDENCE_EFFECT_TEXT`에 2개 추가
-- [ ] 4. 신규 테스트 작성, 전체 스위트 통과 확인
-- [ ] 5. `story-v0.4-redesign` 브랜치에 커밋
+- [x] 1. `engine/state.py` — 3개 이벤트 appliers + RECORD_TEMPLATES 추가
+- [x] 2. `llm/prompts.py` — `ALLOWED_EVENT_TYPES`에 3개 추가
+- [x] 3. `engine/ending.py` — `EVIDENCE_EFFECT_TEXT`에 2개 추가
+- [x] 4. 신규 테스트 작성(`test_state_engine.py` 7개 + `test_ending_evidence_and_misc.py` 1개), 전체 스위트 138개 통과 확인
+- [x] 5. `story-v0.4-redesign` 브랜치에 커밋
+
+**완료.** 다음은 3단계(opening.py·llm/prompts.py를 v0.4 스토리 내용으로 교체)로 진행.

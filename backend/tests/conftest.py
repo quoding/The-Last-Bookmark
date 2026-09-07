@@ -26,8 +26,14 @@ def _test_settings_env(monkeypatch):
     from app.config import get_settings
 
     get_settings.cache_clear()
+
+    from app.api import rate_limit
+
+    rate_limit.reset_all()
+
     yield
     get_settings.cache_clear()
+    rate_limit.reset_all()
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://tainai:tainai@localhost:5545/tainai_test"

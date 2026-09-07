@@ -1,7 +1,7 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as DbSession
 
@@ -14,6 +14,7 @@ from app.api.common import (
 )
 from app.api.deps import build_image_generator, get_image_generator
 from app.api.idempotency import get_cached_response, store_response
+from app.api.rate_limit import check_rate_limit, get_client_ip, record_attempt
 from app.auth import issue_token, require_code_id, verify_invite_code
 from app.config import get_settings
 from app.db import get_db
@@ -86,8 +87,13 @@ def _get_owned_session(db: DbSession, code_id: str, session_id: str) -> SessionM
 
 
 @router.post("/auth/verify", response_model=AuthVerifyResponse)
-def verify_code(body: AuthVerifyRequest):
+def verify_code(body: AuthVerifyRequest, request: Request):
+    ip = get_client_ip(request)
+    check_rate_limit(ip)
+
     code_id = verify_invite_code(body.code)
+    record_attempt(ip, success=code_id is not None)
+
     if code_id is None:
         raise HTTPException(status_code=401, detail="초대 코드가 올바르지 않습니다.")
     return AuthVerifyResponse(token=issue_token(code_id))

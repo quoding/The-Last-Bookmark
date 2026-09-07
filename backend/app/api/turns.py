@@ -48,21 +48,32 @@ def _run_ending_image_job(session_id: uuid.UUID, portrait_path: str, slots: dict
 
     db = get_sessionmaker()()
     session_row = db.get(SessionModel, session_id)
+    if session_row is None:
+        db.close()
+        return  # 회차가 삭제된 뒤 실행됐다. 조용히 종료한다.
     generator = build_image_generator(session_row.code_id)
     try:
-        job = ImageJob(session_id=session_id, kind="ending", scene_id=None, status="pending")
-        db.add(job)
-        db.flush()
+        try:
+            job = ImageJob(session_id=session_id, kind="ending", scene_id=None, status="pending")
+            db.add(job)
+            db.flush()
+        except Exception:  # noqa: BLE001 - 그 사이 회차가 지워졌으면 여기서 멈춘다
+            db.rollback()
+            return
         try:
             image = generate_ending_image(db, generator, session_id, portrait_path, slots, session_row.code_id)
             job.status = "done"
             job.image_id = image.id
             session = db.get(SessionModel, session_id)
-            session.ending_image_id = image.id
+            if session is not None:
+                session.ending_image_id = image.id
         except Exception as exc:  # noqa: BLE001
             job.status = "failed"
             job.error = str(exc)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:  # noqa: BLE001 - 그 사이 회차가 지워졌으면 이 작업 결과는 버린다
+            db.rollback()
     finally:
         db.close()
 

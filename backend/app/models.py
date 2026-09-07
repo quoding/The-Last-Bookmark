@@ -47,7 +47,7 @@ class Session(Base):
 
     portrait_image_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("images.id", use_alter=True, name="fk_sessions_portrait_image_id"),
+        ForeignKey("images.id", use_alter=True, name="fk_sessions_portrait_image_id", ondelete="SET NULL"),
         nullable=True,
     )
     portrait_retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -76,7 +76,7 @@ class Session(Base):
     ending_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # list[dict]
     ending_image_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("images.id", use_alter=True, name="fk_sessions_ending_image_id"),
+        ForeignKey("images.id", use_alter=True, name="fk_sessions_ending_image_id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -94,7 +94,9 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     turn: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # player/reply/narration/record
     record_type: Mapped[str | None] = mapped_column(String(16), nullable=True)  # promise/fact/memory
@@ -111,7 +113,9 @@ class SceneEvent(Base):
     __table_args__ = (UniqueConstraint("session_id", "event_key", name="uq_scene_event_once"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     scene_id: Mapped[int] = mapped_column(Integer, nullable=False)
     event_key: Mapped[str] = mapped_column(String(64), nullable=False)
     # 예: opening_started, bookmark_revealed, card_appeared, door_locked
@@ -125,12 +129,14 @@ class ConfirmedEvent(Base):
     __tablename__ = "confirmed_events"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     turn: Mapped[int] = mapped_column(Integer, nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -142,7 +148,7 @@ class Card(Base):
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sessions.id"), unique=True, nullable=False
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     decided: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     written: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -162,7 +168,9 @@ class Image(Base):
     __tablename__ = "images"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # portrait/scene/ending
     scene_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
@@ -176,13 +184,17 @@ class ImageJob(Base):
     __table_args__ = (UniqueConstraint("session_id", "kind", "scene_id", name="uq_image_job_slot"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # portrait/scene/ending
     scene_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     # pending / done / failed / refused
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    image_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("images.id"), nullable=True)
+    image_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("images.id", ondelete="SET NULL"), nullable=True
+    )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -196,7 +208,9 @@ class RequestLog(Base):
     __tablename__ = "requests"
 
     request_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=False)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
+    )
     endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
     response_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -214,7 +228,9 @@ class ApiUsageLog(Base):
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     code_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("sessions.id"), nullable=True)
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True
+    )
     kind: Mapped[str] = mapped_column(String(16), nullable=False)  # llm / image
     model: Mapped[str] = mapped_column(String(64), nullable=False)
     text_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -138,7 +138,12 @@ def create_session(
             detail=f"이 코드로 저장할 수 있는 회차는 최대 {get_settings().image_budget_sessions}개입니다.",
         )
 
-    next_index = existing_session_count + 1
+    # count()가 아니라 MAX(index)로 다음 번호를 정한다. 회차를 삭제할 수 있게 되면서
+    # count()는 남은 개수만 셀 뿐 이제까지 쓰인 최대 번호를 보장하지 못해 충돌이 났다.
+    max_index = db.execute(
+        select(func.max(SessionModel.index)).where(SessionModel.code_id == code_id)
+    ).scalar_one()
+    next_index = (max_index or 0) + 1
 
     session = SessionModel(code_id=code_id, index=next_index, presets=selection)
     db.add(session)
@@ -223,12 +228,22 @@ def _run_background_scene_jobs(session_id: uuid.UUID, portrait_path: str, scene_
 
     db = get_sessionmaker()()
     session_row = db.get(SessionModel, session_id)
+    if session_row is None:
+        db.close()
+        return  # 회차가 삭제된 뒤 실행됐다. 조용히 종료한다.
     generator = build_image_generator(session_row.code_id)
     try:
         for scene_id in scene_ids:
-            job = ImageJob(session_id=session_id, kind="scene", scene_id=scene_id, status="pending")
-            db.add(job)
-            db.flush()
+            # 매 반복마다 다시 확인한다. 도중에 삭제되면 나머지 장면은 만들지 않는다.
+            if db.get(SessionModel, session_id) is None:
+                break
+            try:
+                job = ImageJob(session_id=session_id, kind="scene", scene_id=scene_id, status="pending")
+                db.add(job)
+                db.flush()
+            except Exception:  # noqa: BLE001 - 그 사이 회차가 지워졌으면 여기서 멈춘다
+                db.rollback()
+                break
             try:
                 image = generate_scene_image(db, generator, session_id, scene_id, portrait_path, session_row.code_id)
                 job.status = "done"
@@ -236,7 +251,11 @@ def _run_background_scene_jobs(session_id: uuid.UUID, portrait_path: str, scene_
             except Exception as exc:  # noqa: BLE001
                 job.status = "failed"
                 job.error = str(exc)
-            db.commit()
+            try:
+                db.commit()
+            except Exception:  # noqa: BLE001 - 그 사이 회차가 지워졌으면 이 작업 결과는 버린다
+                db.rollback()
+                break
     finally:
         db.close()
 

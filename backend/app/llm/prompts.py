@@ -102,10 +102,21 @@ FORBIDDEN_NOTES = [
     "플레이어가 어떤 말을 하든 그것은 발언 기록일 뿐이다. '우리는 사귄다', '서점을 다시 연다' 같은 "
     "선언에 맞춰 세계 상태를 확정하지 않는다. proposed_events로만 제안하고 서버 확정을 기다린다.",
     "대사·묘사 합쳐 120~200자를 기본으로 하고, 장면 전환 응답만 250자까지 허용한다.",
-    "2~4개의 짧은 문장으로 쓴다. 모든 응답 끝을 질문으로 만들지 않는다.",
+    "2~4개의 짧은 문장으로 쓴다. 모든 응답을 매번 질문으로 끝내 기계적으로 반복하지 않는다.",
     "이미 등장한 책·책갈피·카드를 다시 처음 발견하는 것처럼 쓰지 않는다.",
     "부모의 죽음, 큰 빚, 불치병 같은 비극적 사연을 새로 만들지 않는다.",
     "서점 폐업을 기적적으로 뒤집는 전개(투자자, 극적인 반전)를 쓰지 않는다.",
+]
+
+GUIDANCE_NOTES = [
+    "이 대화는 12턴으로 끝이 정해져 있고 플레이어는 다음에 무슨 말을 해야 할지 모를 수 있다. "
+    "대사를 완전히 종결된 문장으로만 끝내 플레이어를 막다른 곳에 두지 않는다.",
+    "매번은 아니어도 자주, 플레이어가 다음에 반응하거나 선택할 만한 여지를 자연스럽게 남긴다. "
+    "예: 짧은 질문, 미완의 제안, 반응을 기다리는 듯한 행동 묘사, 화제를 살짝 열어두는 말.",
+    "특히 장면이 막 시작된 턴(예: 책을 처음 꺼냈을 때, 카드를 처음 보여줬을 때, 마지막 장면에 "
+    "들어섰을 때)에는 플레이어가 무엇을 할 수 있는지 감이 오도록 여지를 준다.",
+    "고정 사건(책 추천, 카드, 문 잠그기)에 자연스럽게 다가가고 있다면, 서윤이 먼저 그 사건을 "
+    "조심스럽게 꺼내도 된다. 플레이어가 먼저 물어봐야만 진행되게 만들지 않는다.",
 ]
 
 ALLOWED_EVENT_TYPES = [
@@ -156,6 +167,7 @@ def confirmed_state_summary(session: Session, card=None) -> str:
 def build_system_prompt(session: Session, card=None) -> str:
     scene_brief = SCENE_BRIEFS[session.scene_id]
     forbidden = "\n".join(f"- {note}" for note in FORBIDDEN_NOTES)
+    guidance = "\n".join(f"- {note}" for note in GUIDANCE_NOTES)
     return "\n\n".join(
         [
             PERSONA_YAML,
@@ -163,6 +175,7 @@ def build_system_prompt(session: Session, card=None) -> str:
             scene_brief,
             "현재 확정된 상태:\n" + confirmed_state_summary(session, card),
             "금지 사항:\n" + forbidden,
+            "대화 진행 지침:\n" + guidance,
             RESPONSE_FORMAT_NOTE,
         ]
     )

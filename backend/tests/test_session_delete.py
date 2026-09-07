@@ -34,6 +34,28 @@ def test_delete_session_removes_it_from_list(client, auth_headers):
     assert session_id not in [s["id"] for s in listing]
 
 
+def test_new_session_index_does_not_collide_after_deleting_a_middle_session(client, auth_headers):
+    """실제로 겪은 버그 재현: count()로 다음 index를 정하면, 회차를 지운 뒤 새로
+    만들 때 남아있는 index와 충돌해 UniqueViolation이 났다."""
+    ids = []
+    for _ in range(3):
+        resp = _create_session(client, auth_headers)
+        assert resp.status_code == 200
+        ids.append(resp.json()["id"])
+
+    # 가운데(2번째) 회차를 지운다: 남는 index는 {1, 3}
+    del_resp = client.delete(f"/api/sessions/{ids[1]}", headers=auth_headers)
+    assert del_resp.status_code == 200
+
+    # count()==2 라서 count+1==3 로 계산하면 이미 존재하는 index=3과 충돌한다.
+    new_resp = _create_session(client, auth_headers)
+    assert new_resp.status_code == 200
+    assert new_resp.json()["index"] == 4
+
+    listing = client.get("/api/sessions", headers=auth_headers).json()["sessions"]
+    assert sorted(s["index"] for s in listing) == [1, 3, 4]
+
+
 def test_delete_session_404_after_second_attempt(client, auth_headers):
     create_resp = _create_session(client, auth_headers)
     session_id = create_resp.json()["id"]
@@ -93,6 +115,50 @@ def test_delete_removes_portrait_image_file_from_disk(client, auth_headers):
 
     client.delete(f"/api/sessions/{session_id}", headers=auth_headers)
     assert not file_path.exists()
+
+
+def test_delete_session_succeeds_even_if_background_job_inserted_image_after_start(client, auth_headers):
+    """실제로 겪은 버그 재현: 장면 이미지를 만드는 백그라운드 작업이 삭제 시점에도
+    새 이미지 행을 계속 커밋할 수 있다(실측 20~30초/장). 이미지 1장에 몇 초씩 걸려
+    Python에서 재시도로 따라잡을 수 없었고, ON DELETE CASCADE로 DB가 원자적으로
+    처리하도록 고쳤다. 여기서는 '삭제 도중 새로 생긴 이미지'를 직접 끼워 넣어
+    재현한다."""
+    import uuid as uuid_mod
+
+    from app.db import get_sessionmaker
+    from app.models import Image
+
+    create_resp = _create_session(client, auth_headers)
+    session_id = create_resp.json()["id"]
+
+    # 백그라운드 장면 작업이 막 커밋했다고 가정한 이미지 행을 별도 커넥션으로 끼워 넣는다.
+    race_db = get_sessionmaker()()
+    try:
+        race_db.add(
+            Image(
+                session_id=uuid_mod.UUID(session_id),
+                kind="scene",
+                scene_id=4,
+                file_path="/tmp/race-image-not-real.webp",
+            )
+        )
+        race_db.commit()
+    finally:
+        race_db.close()
+
+    del_resp = client.delete(f"/api/sessions/{session_id}", headers=auth_headers)
+    assert del_resp.status_code == 200
+
+    listing = client.get("/api/sessions", headers=auth_headers).json()["sessions"]
+    assert session_id not in [s["id"] for s in listing]
+
+    # 뒤늦게 끼어든 이미지 행도 CASCADE로 함께 지워졌어야 한다.
+    check_db = get_sessionmaker()()
+    try:
+        remaining = check_db.query(Image).filter(Image.session_id == uuid_mod.UUID(session_id)).count()
+        assert remaining == 0
+    finally:
+        check_db.close()
 
 
 def test_delete_session_after_full_flow_keeps_usage_logs(client, auth_headers):

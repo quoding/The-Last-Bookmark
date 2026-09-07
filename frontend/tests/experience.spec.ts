@@ -12,6 +12,31 @@ async function fault(page: Page, name: string) {
     module.setMockFault(faultName);
   }, name);
 }
+test("초대 코드 확인 403은 서버의 안내 문구를 그대로 보여준다", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await fault(page, "auth-forbidden");
+  await page.getByLabel("초대 코드", { exact: true }).fill("reading-room");
+  await page.getByRole("button", { name: "들어가기", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "이 코드는 허용된 위치에서만 사용할 수 있어요.",
+  );
+  await expect(page.getByRole("button", { name: /이어서 하기/ })).toHaveCount(
+    0,
+  );
+});
+test("초대 코드 확인 401은 기존 잘못된 코드 안내를 유지한다", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await fault(page, "auth");
+  await page.getByLabel("초대 코드", { exact: true }).fill("reading-room");
+  await page.getByRole("button", { name: "들어가기", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "초대 코드를 다시 확인해주세요.",
+  );
+});
 test("초대, 미선택 외형, 주사위, 재생성 두 번, 대화 시작", async ({ page }) => {
   await enter(page);
   await page

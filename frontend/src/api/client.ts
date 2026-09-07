@@ -56,12 +56,20 @@ export async function request<T>(
     if (response.status === 202 || response.status === 204)
       throw new ApiError(response.status, "마지막 장면을 정리하고 있어요");
     if (!response.ok) {
-      if (response.status === 401 && path !== "/api/auth/verify")
+      const isAuthVerify = path === "/api/auth/verify";
+      if (response.status === 401 && !isAuthVerify)
         window.dispatchEvent(new Event("bookmark-auth-expired"));
-      throw new ApiError(
-        response.status,
-        errorMessage(response.status, path === "/api/auth/verify"),
-      );
+      let message = errorMessage(response.status, isAuthVerify);
+      if (response.status === 403 && isAuthVerify) {
+        try {
+          const body = (await response.json()) as { detail?: unknown };
+          if (typeof body.detail === "string" && body.detail.trim())
+            message = body.detail;
+        } catch {
+          /* detail을 읽을 수 없으면 기존 공통 오류 문구를 사용한다. */
+        }
+      }
+      throw new ApiError(response.status, message);
     }
     return (await response.json()) as T;
   } catch (error) {

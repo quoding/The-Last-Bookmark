@@ -321,6 +321,11 @@ export async function mockFetch(
   await pause(method === "GET" ? 130 : 550);
   if (!navigator.onLine) throw new TypeError("offline");
   if (path === "/api/auth/verify") {
+    if (takeFault("auth-forbidden"))
+      return reply(
+        { detail: "이 코드는 허용된 위치에서만 사용할 수 있어요." },
+        403,
+      );
     const attempts = read<number[]>("attempts", []).filter(
       (time) => Date.now() - time < 60000,
     );

@@ -428,6 +428,13 @@ export async function mockFetch(
   const story = match ? stories[decodeURIComponent(match[1])] : undefined;
   if (!story || !match) return reply(null, 404);
   const action = match[2];
+  if (action === "" && method === "DELETE") {
+    if (takeFault("delete-not-found")) return reply(null, 404);
+    if (takeFault("delete")) return reply(null, 503);
+    delete stories[story.session.id];
+    save();
+    return reply({ status: "deleted", id: story.session.id });
+  }
   if (action === "" && method === "GET") {
     if (story.sceneReadyAt <= Date.now())
       story.history.forEach((turn) => {

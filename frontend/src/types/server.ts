@@ -59,3 +59,8 @@ export interface CardSubmitRequest {
   action: "write" | "leave_blank";
   text: string | null;
 }
+
+export interface SessionDeleteResponse {
+  status: "deleted";
+  id: string;
+}

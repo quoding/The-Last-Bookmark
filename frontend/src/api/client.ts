@@ -1,5 +1,6 @@
 import type { Ending, SessionList, TurnResponse } from "../types/api";
 import type {
+  SessionDeleteResponse,
   AuthVerifyResponse,
   CardSubmitRequest,
   PortraitRetryResponse,
@@ -41,7 +42,7 @@ export async function request<T>(
   const timeout = window.setTimeout(() => controller.abort(), 45000);
   const token = localStorage.getItem("last-bookmark:token");
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  if (init.body != null) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const options = {
     ...init,
@@ -85,6 +86,8 @@ export const api = {
   verify: (code: string) =>
     post<AuthVerifyResponse>("/api/auth/verify", { code }),
   sessions: () => request<SessionList>("/api/sessions"),
+  deleteSession: (id: string) =>
+    request<SessionDeleteResponse>(sessionPath(id), { method: "DELETE" }),
   create: (body: SessionCreateRequest) =>
     post<SessionCreateResponse>("/api/sessions", body),
   portraitRetry: (id: string, body: PortraitRetryRequest) =>

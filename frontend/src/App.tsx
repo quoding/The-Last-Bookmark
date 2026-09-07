@@ -16,6 +16,7 @@ import { Appearance } from "./screens/Appearance";
 import { Conversation } from "./screens/Conversation";
 import { EndingScreen } from "./screens/EndingScreen";
 import { Stories } from "./screens/Stories";
+import { ConfirmDeleteSession } from "./components/ConfirmDeleteSession";
 import { Icon } from "./components/Icon";
 import s from "./App.module.css";
 
@@ -38,6 +39,12 @@ export default function App() {
     () => localStorage.getItem("last-bookmark:token") ?? "",
   );
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteNotice, setDeleteNotice] = useState("");
+  const deleteGate = useRef(false);
+  const deletedIds = useRef(new Set<string>());
   const [listError, setListError] = useState("");
   const [loading, setLoading] = useState(false);
   const [globalError, setGlobalError] = useState("");
@@ -122,7 +129,11 @@ export default function App() {
     try {
       const list = await api.sessions();
       if (localStorage.getItem("last-bookmark:token") !== token) return;
-      setSessions(list.sessions.sort((a, b) => b.index - a.index));
+      setSessions(
+        list.sessions
+          .filter((item) => !deletedIds.current.has(`${token}:${item.id}`))
+          .sort((a, b) => b.index - a.index),
+      );
       setListError("");
     } catch (error) {
       setListError(errorText(error));
@@ -130,6 +141,8 @@ export default function App() {
   }, [token]);
   useEffect(() => {
     void loadSessions();
+    setDeleteTarget(null);
+    setDeleteNotice("");
     setCreatePending(
       token
         ? readLocal<SessionCreateRequest | null>(
@@ -192,7 +205,11 @@ export default function App() {
           setCreatePending(null);
           setSession(null);
           setTurns([]);
-          setSessions(list.sessions.sort((a, b) => b.index - a.index));
+          setSessions(
+            list.sessions
+              .filter((item) => !deletedIds.current.has(`${token}:${item.id}`))
+              .sort((a, b) => b.index - a.index),
+          );
           if (!isAppearanceRoute) navigate(`/appearance/${state.id}`);
           return;
         }
@@ -227,7 +244,11 @@ export default function App() {
           completed_turns: state.completed_turns,
           status: state.status as Session["status"],
         });
-        setSessions(list.sessions.sort((a, b) => b.index - a.index));
+        setSessions(
+          list.sessions
+            .filter((item) => !deletedIds.current.has(`${token}:${item.id}`))
+            .sort((a, b) => b.index - a.index),
+        );
         setTurns(history);
         setText(
           previousRequest &&
@@ -545,6 +566,54 @@ export default function App() {
     navigate("/");
     void loadSessions();
   };
+  const askDelete = (item: Session) => {
+    setDeleteError("");
+    setDeleteNotice("");
+    setDeleteTarget(item);
+  };
+  const deleteSession = async () => {
+    if (!deleteTarget || deleteGate.current) return;
+    const target = deleteTarget;
+    deleteGate.current = true;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await api.deleteSession(target.id);
+      deletedIds.current.add(`${token}:${target.id}`);
+      if (localStorage.getItem("last-bookmark:token") !== token) return;
+      setSessions((items) => items.filter((item) => item.id !== target.id));
+      for (const prefix of [
+        "history",
+        "pending",
+        "text",
+        "card",
+        "end-request",
+      ])
+        removeLocal(key(`${prefix}:${target.id}`));
+      if (portraitDraft?.result.id === target.id) {
+        removeLocal(key("portrait-draft"));
+        setPortraitDraft(null);
+      }
+      if (session?.id === target.id) {
+        setSession(null);
+        setTurns([]);
+        setEnding(null);
+        pending.current = null;
+      }
+      delete endingScroll.current[target.id];
+      setDeleteTarget(null);
+      setDeleteNotice(`${target.index}번째 이야기를 삭제했어요.`);
+    } catch (error) {
+      setDeleteError(
+        error instanceof ApiError && error.status === 404
+          ? "이 이야기를 찾을 수 없거나 삭제할 권한이 없어요. 목록을 새로고침해주세요."
+          : "삭제하지 못했어요. 연결을 확인하고 다시 시도해주세요.",
+      );
+    } finally {
+      deleteGate.current = false;
+      setDeleteBusy(false);
+    }
+  };
   const showEnding = route.startsWith("/ending/") && !!token;
   const active = session?.id === sessionId && turns.length > 0;
   return (
@@ -601,6 +670,7 @@ export default function App() {
             }}
             onNew={newStory}
             onOpen={openSession}
+            onDelete={askDelete}
             onLogout={() => {
               localStorage.removeItem("last-bookmark:token");
               setToken("");
@@ -654,6 +724,7 @@ export default function App() {
           <Stories
             sessions={sessions}
             onOpen={openSession}
+            onDelete={askDelete}
             onNew={newStory}
             onHome={exit}
           />
@@ -733,6 +804,18 @@ export default function App() {
             onRefreshImages={() => void refreshImages()}
           />
         )}
+        {token && deleteTarget && (
+          <ConfirmDeleteSession
+            index={deleteTarget.index}
+            busy={deleteBusy}
+            error={deleteError}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={() => void deleteSession()}
+          />
+        )}
+        <span className={s.srOnly} role="status">
+          {deleteNotice}
+        </span>
         <span className={s.srOnly} role="status">
           {busy ? "응답을 기다리는 중입니다." : ""}
         </span>

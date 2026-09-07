@@ -9,6 +9,7 @@ export function Home({
   onVerify,
   onNew,
   onOpen,
+  onDelete,
   onLogout,
   listError,
   onReload,
@@ -18,6 +19,7 @@ export function Home({
   onVerify: (code: string) => Promise<void>;
   onNew: () => void;
   onOpen: (session: Session) => void;
+  onDelete: (session: Session) => void;
   onLogout: () => void;
   listError: string;
   onReload: () => void;
@@ -141,7 +143,11 @@ export function Home({
                   </button>
                 </p>
               ) : (
-                <SessionList sessions={sessions} onOpen={onOpen} />
+                <SessionList
+                  sessions={sessions}
+                  onOpen={onOpen}
+                  onDelete={onDelete}
+                />
               )}
             </section>
             <button className={s.textButton} onClick={onLogout}>

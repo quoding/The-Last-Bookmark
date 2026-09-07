@@ -654,3 +654,94 @@ test("다른 브라우저에서 완료 회차를 열어도 scenes 응답으로 �
     await context.close();
   }
 });
+
+test("완료 회차 삭제를 취소하거나 확정하고 새로고침해도 유지한다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page.getByRole("button", { name: "2회차 삭제", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByText("삭제한 이야기는 되돌릴 수 없어요."),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "취소", exact: true }),
+  ).toBeFocused();
+  await dialog.getByRole("button", { name: "취소", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "2회차 삭제", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "2회차 삭제", exact: true }).click();
+  await dialog
+    .getByRole("button", { name: "이야기 삭제", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", { name: "삭제하는 중", exact: true }),
+  ).toBeDisabled();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "2회차 삭제", exact: true }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: /이어서 하기/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "1회차 삭제", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "2회차 삭제", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("회차 목록에서 진행 중 회차를 삭제하면 이어서 하기도 사라진다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page.goto("/#/stories");
+  await page.getByRole("button", { name: "3회차 삭제", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "이야기 삭제", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "3회차 삭제", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "처음으로", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "1회차 삭제", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /이어서 하기/ })).toHaveCount(
+    0,
+  );
+});
+
+for (const failure of ["delete", "delete-not-found"]) {
+  test(`회차 삭제 실패 시 목록을 유지하고 재시도한다: ${failure}`, async ({
+    page,
+  }) => {
+    await enter(page);
+    await fault(page, failure);
+    await page.getByRole("button", { name: "2회차 삭제", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog
+      .getByRole("button", { name: "이야기 삭제", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      failure === "delete"
+        ? "삭제하지 못했어요"
+        : "찾을 수 없거나 삭제할 권한이 없어요",
+    );
+    await dialog.getByRole("button", { name: "취소", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "2회차 삭제", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "2회차 삭제", exact: true }).click();
+    await dialog
+      .getByRole("button", { name: "이야기 삭제", exact: true })
+      .click();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "2회차 삭제", exact: true }),
+    ).toHaveCount(0);
+  });
+}

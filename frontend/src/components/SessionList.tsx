@@ -5,9 +5,11 @@ import s from "../App.module.css";
 export function SessionList({
   sessions,
   onOpen,
+  onDelete,
 }: {
   sessions: Session[];
   onOpen: (session: Session) => void;
+  onDelete: (session: Session) => void;
 }) {
   return (
     <div className={s.sessionList}>
@@ -17,34 +19,39 @@ export function SessionList({
         </p>
       ) : (
         sessions.map((session) => (
-          <button
-            className={s.sessionRow}
-            key={session.id}
-            onClick={() => onOpen(session)}
-          >
-            <img
-              className={s.avatar}
-              src={imageURL(session.portrait_url) ?? "/images/portrait-1.svg"}
-              alt={`${session.index}번째 이야기의 서윤`}
-            />
-            <span className={s.sessionInfo}>
-              <span className={s.eyebrow}>
-                {session.index}번째 이야기{" "}
-                <span className={s.status}>
-                  {session.status !== "in_progress" ? "완료" : "진행 중"}
+          <div className={s.sessionRow} key={session.id}>
+            <button className={s.sessionOpen} onClick={() => onOpen(session)}>
+              <img
+                className={s.avatar}
+                src={imageURL(session.portrait_url) ?? "/images/portrait-1.svg"}
+                alt={`${session.index}번째 이야기의 서윤`}
+              />
+              <span className={s.sessionInfo}>
+                <span className={s.eyebrow}>
+                  {session.index}번째 이야기{" "}
+                  <span className={s.status}>
+                    {session.status !== "in_progress" ? "완료" : "진행 중"}
+                  </span>
+                </span>
+                <strong>
+                  {session.status !== "in_progress"
+                    ? session.ending_title
+                    : `진행 중 (${session.completed_turns}/12)`}
+                </strong>
+                <span className={s.date}>
+                  {session.created_at.slice(0, 10).replaceAll("-", ".")}
                 </span>
               </span>
-              <strong>
-                {session.status !== "in_progress"
-                  ? session.ending_title
-                  : `진행 중 (${session.completed_turns}/12)`}
-              </strong>
-              <span className={s.date}>
-                {session.created_at.slice(0, 10).replaceAll("-", ".")}
-              </span>
-            </span>
-            <Icon name="chevron" size={16} />
-          </button>
+              <Icon name="chevron" size={16} />
+            </button>
+            <button
+              className={s.sessionDelete}
+              aria-label={`${session.index}회차 삭제`}
+              onClick={() => onDelete(session)}
+            >
+              삭제
+            </button>
+          </div>
         ))
       )}
     </div>

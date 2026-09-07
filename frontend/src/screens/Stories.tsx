@@ -5,11 +5,13 @@ import s from "../App.module.css";
 export function Stories({
   sessions,
   onOpen,
+  onDelete,
   onNew,
   onHome,
 }: {
   sessions: Session[];
   onOpen: (session: Session) => void;
+  onDelete: (session: Session) => void;
   onNew: () => void;
   onHome: () => void;
 }) {
@@ -25,7 +27,7 @@ export function Stories({
         <br />
         마무리된 이야기는 그날의 모습 그대로 다시 읽을 수 있어요.
       </p>
-      <SessionList sessions={sessions} onOpen={onOpen} />
+      <SessionList sessions={sessions} onOpen={onOpen} onDelete={onDelete} />
       <div className={s.storiesFoot}>
         <button className={s.primary} onClick={onNew}>
           새 이야기 시작하기

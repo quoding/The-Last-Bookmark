@@ -1925,3 +1925,36 @@
 .inputBox textarea::placeholder {
   color: #87977a;
 }
+
+.sessionOpen {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+}
+.sessionDelete {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: #75645d;
+  font-size: 13px;
+}
+.sessionDelete:hover {
+  color: #8b433b;
+  text-decoration: underline;
+}
+.deleteConfirm {
+  background: #85564c;
+}
+.deleteConfirm:hover:not(:disabled) {
+  background: #71483f;
+}

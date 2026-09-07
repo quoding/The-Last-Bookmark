@@ -65,14 +65,16 @@ npm run format:check
 
 ## 5. 커밋
 
-- 한글 커밋 메시지, 기능 단위로 나눈다
-- `frontend/` 밖의 파일은 커밋에 포함하지 않는다
+- git은 Codex가 아니라 별도 도구(Claude Code)가 관리한다. Codex는 git 명령을 실행하지 않는다
 - 작업 기록은 `worklog_codex/`에 `yymmhhmm_worklog.md` 형식으로 남긴다. 이 폴더는
   gitignore 대상이라 커밋에는 안 들어가지만, 그래도 실제 API 키·비밀번호·IP 같은 값은
   적지 않는다(`docs/ops-notes.md` 참고)
 
 ## 6. 하지 말 것
 
+- **git 명령을 직접 실행하지 않는다.** `git add`, `git commit`, `git push`, `git checkout`
+  등 어떤 git 명령도 스스로 실행하지 않는다. 변경한 파일을 커밋할 준비가 됐으면 사용자에게
+  알리기만 한다.
 - `backend/`, `docs/`, `CLAUDE.md` 수정
 - API 계약에 없는 필드를 임의로 가정해서 사용
 - 내부 수치를 화면이나 로컬 상태에 노출

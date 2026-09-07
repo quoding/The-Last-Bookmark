@@ -308,16 +308,14 @@ export function Conversation({
                       consecutive={i > 0 && reaction[i - 1].kind === "reply"}
                     />
                   ))}
+                  {index > 0 && turn.scene.entered && divider}
                   {entry && (
-                    <>
-                      {divider}
-                      <MessageBubble
-                        message={entry}
-                        portrait={session.portrait_url}
-                        highlighted={entry.id === highlighted}
-                        consecutive={false}
-                      />
-                    </>
+                    <MessageBubble
+                      message={entry}
+                      portrait={session.portrait_url}
+                      highlighted={entry.id === highlighted}
+                      consecutive={false}
+                    />
                   )}
                 </div>
               );

@@ -289,7 +289,8 @@ export default function App() {
   }
   async function generate(value: AppearanceValue) {
     if (
-      portraitDraft?.result.portrait.status === "failed" &&
+      (portraitDraft?.result.portrait.status === "failed" ||
+        portraitDraft?.result.portrait.status === "refused") &&
       JSON.stringify(portraitDraft.value) === JSON.stringify(value)
     ) {
       await retryPortrait();

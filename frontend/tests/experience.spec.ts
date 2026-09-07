@@ -379,3 +379,89 @@ test("마지막 입력 안내에서 12턴 엔딩까지 진행하며 새 질문�
     page.getByRole("heading", { name: "오늘의 말이 머문 자리" }),
   ).toBeVisible();
 });
+
+test("전환 응답이 기록 카드로 끝나도 장면 구분선과 이미지가 유지된다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    const key = `last-bookmark:mock:v1:${token}`;
+    const stories = JSON.parse(localStorage.getItem(key)!);
+    for (const turn of stories["story-3"].history) {
+      if (![3, 6].includes(turn.completed_turns)) continue;
+      turn.messages = turn.messages.filter(
+        (message: { id: string }) => !message.id.endsWith("_entry"),
+      );
+      turn.messages.push({
+        id: `record-tail-${turn.completed_turns}`,
+        turn: turn.completed_turns,
+        kind: "record",
+        record_type: "memory",
+        text: "지금 나눈 말을 기억해두었다.",
+      });
+    }
+    localStorage.setItem(key, JSON.stringify(stories));
+  });
+  await page.getByRole("button", { name: /이어서 하기/ }).click();
+  await expect(page.getByText("대화 7/12 완료")).toBeVisible();
+  await expect(page.locator("[data-scene-entry]")).toHaveCount(3);
+  await expect(page.locator('[data-scene-entry="3"]')).toContainText(
+    "20:37 · 남겨둔 책",
+  );
+  await expect(page.locator('[data-scene-entry="6"]')).toContainText(
+    "20:45 · 쓰지 못한 한 문장",
+  );
+  await expect(
+    page.getByRole("img", { name: "쓰지 못한 한 문장의 서윤", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator("[data-scene-entry]")).toHaveCount(3);
+});
+
+test("초상화 생성 거부를 재시도할 때 기존 회차와 잔여 횟수를 유지한다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page
+    .getByRole("button", { name: "새 이야기 시작하기", exact: true })
+    .click();
+  await page.getByRole("button", { name: "주사위로 고르기" }).click();
+  await page
+    .getByRole("button", { name: "이 모습으로 시작", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "이 모습으로 시작하기", exact: true }),
+  ).toBeEnabled();
+  const before = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    const draftKey = `last-bookmark:${token}:portrait-draft`;
+    const storyKey = `last-bookmark:mock:v1:${token}`;
+    const draft = JSON.parse(localStorage.getItem(draftKey)!);
+    const stories = JSON.parse(localStorage.getItem(storyKey)!);
+    draft.result.portrait.status = "refused";
+    draft.result.portrait.url = null;
+    stories[draft.result.id].portrait = draft.result.portrait;
+    localStorage.setItem(draftKey, JSON.stringify(draft));
+    localStorage.setItem(storyKey, JSON.stringify(stories));
+    return { id: draft.result.id, count: Object.keys(stories).length };
+  });
+  await page.reload();
+  await page
+    .getByRole("button", { name: "같은 요청 다시 시도하기", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /다시 그리기.*남은 횟수 2/ }),
+  ).toBeEnabled();
+  const after = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    const draft = JSON.parse(
+      localStorage.getItem(`last-bookmark:${token}:portrait-draft`)!,
+    );
+    const stories = JSON.parse(
+      localStorage.getItem(`last-bookmark:mock:v1:${token}`)!,
+    );
+    return { id: draft.result.id, count: Object.keys(stories).length };
+  });
+  expect(after).toEqual(before);
+});

@@ -24,6 +24,11 @@ export interface SessionStartResponse {
   story_time: string;
   scene: TurnResponse["scene"];
 }
+export interface SceneImageEntry {
+  id: number;
+  name: string;
+  image_url: string | null;
+}
 export interface SessionStateResponse {
   id: string;
   status: string;
@@ -34,9 +39,16 @@ export interface SessionStateResponse {
   card_available: boolean;
   is_final_turn: boolean;
   portrait: PortraitStatus;
+  portrait_confirmed: boolean;
+  presets: Appearance;
+  scenes: SceneImageEntry[];
 }
 export interface SessionCreateRequest {
+  request_id: string;
   presets: Appearance;
+}
+export interface PortraitRetryRequest {
+  request_id: string;
 }
 export interface TurnSubmitRequest {
   request_id: string;

@@ -19,7 +19,7 @@ import { graphemes } from "../lib/story.ts";
 /** 목 서버의 내부 저장소다. 이 객체는 API 응답으로 보내지 않는다. */
 interface StoredStory {
   session: Session;
-  presets: Appearance | null;
+  presets: Appearance;
   portrait: PortraitStatus;
   history: TurnResponse[];
   ending: Ending | null;
@@ -68,13 +68,22 @@ const donePortrait = (url: string | null): PortraitStatus => ({
   retry_count: 0,
   retry_limit: 2,
 });
+const seedPresets: Appearance = {
+  hair_length: "bob",
+  hair_color: "dark_brown",
+  bangs: "swept",
+  eyes: "soft",
+  glasses: "none",
+  impression: "calm",
+  build: "average",
+};
 function seed(): Record<string, StoredStory> {
   return Object.fromEntries(
     mockSessions.sessions.map((session) => [
       session.id,
       {
         session: structuredClone(session),
-        presets: null,
+        presets: { ...seedPresets },
         portrait: donePortrait(session.portrait_url),
         history: structuredClone([
           initialTurn,
@@ -110,6 +119,16 @@ function restore(story: StoredStory): SessionStateResponse {
     card_available: turn.scene.id === 3 && !story.cardDecided,
     is_final_turn: story.session.completed_turns === 12,
     portrait: story.portrait,
+    portrait_confirmed: story.started,
+    presets: story.presets ?? { ...seedPresets },
+    scenes: SCENE_NAMES.map((name, index) => ({
+      id: index + 1,
+      name,
+      image_url:
+        story.started && story.sceneReadyAt <= Date.now()
+          ? `/images/scene-${index + 1}.svg`
+          : null,
+    })),
   };
 }
 function endingFor(story: StoredStory): Ending {
@@ -333,11 +352,29 @@ export async function mockFetch(
     save();
     return reply({
       sessions: Object.values(stories)
-        .filter((story) => story.started)
         .map((story) => story.session)
         .sort((a, b) => b.index - a.index),
     });
   }
+  const receiptKey = `${token}:portrait-receipts`;
+  const receipts = read<Record<string, { path: string; response: unknown }>>(
+    receiptKey,
+    {},
+  );
+  const portraitMutation =
+    method === "POST" &&
+    (path === "/api/sessions" || path.endsWith("/portrait/retry"));
+  if (portraitMutation) {
+    if (typeof body.request_id !== "string" || !body.request_id.trim())
+      return reply(null, 422);
+    const receipt = receipts[body.request_id];
+    if (receipt)
+      return receipt.path === path ? reply(receipt.response) : reply(null, 409);
+  }
+  const saveReceipt = (response: unknown) => {
+    receipts[body.request_id] = { path, response: structuredClone(response) };
+    write(receiptKey, receipts);
+  };
   if (path === "/api/sessions" && method === "POST") {
     if (
       !body.presets ||
@@ -382,7 +419,10 @@ export async function mockFetch(
       endingReadyAt: 0,
     };
     save();
-    return reply({ id, index, portrait });
+    const result = { id, index, portrait };
+    saveReceipt(result);
+    if (takeFault("portrait-after-save")) return reply(null, 503);
+    return reply(result);
   }
   const match = path.match(/^\/api\/sessions\/([^/]+)(.*)$/);
   const story = match ? stories[decodeURIComponent(match[1])] : undefined;
@@ -411,7 +451,10 @@ export async function mockFetch(
       : `/images/portrait-${((story.session.index + story.portrait.retry_count) % 3) + 1}.svg`;
     story.session.portrait_url = story.portrait.url;
     save();
-    return reply({ portrait: story.portrait });
+    const result = { portrait: story.portrait };
+    saveReceipt(result);
+    if (takeFault("portrait-retry-after-save")) return reply(null, 503);
+    return reply(result);
   }
   if (action === "/start") {
     if (story.portrait.status !== "done") return reply(null, 409);
@@ -521,10 +564,4 @@ export async function mockFetch(
     );
   }
   return reply(null, 404);
-}
-/** 목에서만 전체 과거 응답을 읽는다. 실 API 응답에 필드를 추가하지 않는다. */
-export function mockHistory(token: string, id: string): TurnResponse[] {
-  return structuredClone(
-    read<Record<string, StoredStory>>(token, seed())[id]?.history ?? [],
-  );
 }

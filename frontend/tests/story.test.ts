@@ -95,6 +95,13 @@ test("복원은 서버의 현재 시각과 원문을 사용하고 과거 이미�
   const state = {
     id: "story",
     status: "in_progress",
+    portrait_confirmed: true,
+    presets: randomAppearance(),
+    scenes: [1, 2, 3, 4].map((id) => ({
+      id,
+      name: `장면 ${id}`,
+      image_url: id === 4 ? last.scene.image_url : null,
+    })),
     ...last,
     messages: [initialTurn, ...mockTurns.slice(0, 9)].flatMap(
       (turn) => turn.messages,
@@ -113,5 +120,50 @@ test("복원은 서버의 현재 시각과 원문을 사용하고 과거 이미�
   assert.deepEqual(
     history.flatMap((turn) => turn.messages),
     state.messages,
+  );
+});
+
+test("로컬 캐시가 없어도 서버 scenes의 네 장면 이미지를 복원한다", () => {
+  const last = mockTurns[11];
+  const scenes = [1, 2, 3, 4].map((id) => ({
+    id,
+    name: `서버 장면 ${id}`,
+    image_url: `/api/images/remote-${id}`,
+  }));
+  const state = {
+    ...last,
+    id: "remote",
+    status: "completed",
+    portrait_confirmed: true,
+    presets: randomAppearance(),
+    portrait: {
+      status: "done" as const,
+      url: "/api/images/portrait",
+      retry_count: 1,
+      retry_limit: 2,
+    },
+    scenes,
+    scene: { ...last.scene, ...scenes[3] },
+    messages: [initialTurn, ...mockTurns].flatMap((turn) => turn.messages),
+  };
+  const history = restoreHistory(state, []);
+  assert.deepEqual(
+    history
+      .filter((turn) => turn.scene.entered)
+      .map((turn) => turn.scene.image_url),
+    scenes.map((scene) => scene.image_url),
+  );
+  assert.equal(history[3].scene.name, "서버 장면 2");
+  const pending = restoreHistory(
+    {
+      ...state,
+      scenes: scenes.map((scene) => ({ ...scene, image_url: null })),
+    },
+    history,
+  );
+  assert.equal(
+    pending[0].scene.image_url,
+    null,
+    "서버가 준비 중으로 돌린 이미지를 오래된 캐시로 덮지 않는다",
   );
 });

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, isMock } from "./api/client";
+import { api, ApiError } from "./api/client";
 import type { Ending, Session, TurnResponse } from "./types/api";
 import type {
   CardSubmitRequest,
   SessionCreateResponse,
+  SessionCreateRequest,
+  PortraitRetryRequest,
   TurnSubmitRequest,
 } from "./types/server";
 import type { Appearance as AppearanceValue } from "./lib/presets";
@@ -20,7 +22,11 @@ import s from "./App.module.css";
 type Pending =
   | { kind: "turn"; body: TurnSubmitRequest; turn: number }
   | { kind: "card"; body: CardSubmitRequest; turn: number };
-type PortraitDraft = { value: AppearanceValue; result: SessionCreateResponse };
+type PortraitDraft = {
+  value: AppearanceValue;
+  result: SessionCreateResponse;
+  retryRequest?: PortraitRetryRequest;
+};
 const routeNow = () => location.hash.slice(1) || "/";
 const errorText = (error: unknown) =>
   error instanceof Error
@@ -47,6 +53,15 @@ export default function App() {
           )
         : null,
   );
+  const [createPending, setCreatePending] =
+    useState<SessionCreateRequest | null>(() =>
+      token
+        ? readLocal<SessionCreateRequest | null>(
+            scopedKey(token, "portrait-create-request"),
+            null,
+          )
+        : null,
+    );
   const [text, setText] = useState("");
   const [cardText, setCardText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,7 +78,11 @@ export default function App() {
   const gate = useRef(false);
   const pending = useRef<Pending | null>(null);
   const endingScroll = useRef<Record<string, number>>({});
-  const routeMatch = route.match(/^\/(story|ending)\/([^/]+)$/);
+  const isAppearanceRoute =
+    route === "/appearance" || route.startsWith("/appearance/");
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  const routeMatch = route.match(/^\/(story|ending|appearance)\/([^/]+)$/);
   const sessionId = routeMatch ? decodeURIComponent(routeMatch[2]) : null;
   const activeId = useRef(sessionId);
   activeId.current = sessionId;
@@ -111,12 +130,24 @@ export default function App() {
   }, [token]);
   useEffect(() => {
     void loadSessions();
+    setCreatePending(
+      token
+        ? readLocal<SessionCreateRequest | null>(
+            key("portrait-create-request"),
+            null,
+          )
+        : null,
+    );
     setPortraitDraft(
       token
         ? readLocal<PortraitDraft | null>(key("portrait-draft"), null)
         : null,
     );
   }, [token, loadSessions, key]);
+  useEffect(() => {
+    if (token && route === "/appearance" && portraitDraft && !createPending)
+      navigate(`/appearance/${portraitDraft.result.id}`);
+  }, [token, route, portraitDraft?.result.id, !!createPending]);
   useEffect(() => {
     if (!token || !sessionId) return;
     let cancelled = false;
@@ -139,9 +170,41 @@ export default function App() {
           throw new Error(
             "이 이야기를 찾을 수 없어요. 회차 목록에서 다시 골라주세요.",
           );
-        const cached = isMock
-          ? (await import("./api/mock-server")).mockHistory(token, sessionId!)
-          : readLocal<TurnResponse[]>(key(`history:${sessionId}`), []);
+        if (!state.portrait_confirmed) {
+          const previous = readLocal<PortraitDraft | null>(
+            key("portrait-draft"),
+            null,
+          );
+          const draft: PortraitDraft = {
+            value: state.presets,
+            result: {
+              id: state.id,
+              index: item.index,
+              portrait: state.portrait,
+            },
+            ...(previous?.result.id === state.id && previous.retryRequest
+              ? { retryRequest: previous.retryRequest }
+              : {}),
+          };
+          saveLocal(key("portrait-draft"), draft);
+          setPortraitDraft(draft);
+          removeLocal(key("portrait-create-request"));
+          setCreatePending(null);
+          setSession(null);
+          setTurns([]);
+          setSessions(list.sessions.sort((a, b) => b.index - a.index));
+          if (!isAppearanceRoute) navigate(`/appearance/${state.id}`);
+          return;
+        }
+        if (isAppearanceRoute) {
+          removeLocal(key("portrait-draft"));
+          setPortraitDraft(null);
+          navigate(`/story/${state.id}`);
+        }
+        const cached = readLocal<TurnResponse[]>(
+          key(`history:${sessionId}`),
+          [],
+        );
         if (cancelled) return;
         const history = restoreHistory(state, cached);
         saveLocal(key(`history:${sessionId}`), history);
@@ -185,7 +248,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, token, reload, key]);
+  }, [sessionId, token, reload, key, isAppearanceRoute]);
   useEffect(() => {
     if (
       !session ||
@@ -233,12 +296,9 @@ export default function App() {
     if (!sessionId || !token) return;
     try {
       const state = await api.restore(sessionId);
-      const mockCache = isMock
-        ? (await import("./api/mock-server")).mockHistory(token, sessionId)
-        : null;
       if (activeId.current !== sessionId) return;
       setTurns((old) => {
-        const history = restoreHistory(state, mockCache ?? old);
+        const history = restoreHistory(state, old);
         saveLocal(key(`history:${sessionId}`), history);
         return history;
       });
@@ -276,7 +336,9 @@ export default function App() {
   }
   function newStory() {
     setPortraitDraft(null);
+    setCreatePending(null);
     removeLocal(key("portrait-draft"));
+    removeLocal(key("portrait-create-request"));
     setGlobalError("");
     navigate("/appearance");
   }
@@ -296,28 +358,60 @@ export default function App() {
       await retryPortrait();
       return;
     }
-    const result = await api.create(value);
-    const draft = { value, result };
-    setPortraitDraft(draft);
-    saveLocal(key("portrait-draft"), draft);
-    if (result.portrait.status !== "done")
-      throw new Error(
-        "서윤을 그리지 못했어요. 같은 모습으로 다시 시도해주세요. 횟수는 줄어들지 않아요.",
+    if (gate.current) return;
+    gate.current = true;
+    try {
+      const saved = readLocal<SessionCreateRequest | null>(
+        key("portrait-create-request"),
+        null,
       );
+      const request =
+        saved && JSON.stringify(saved.presets) === JSON.stringify(value)
+          ? saved
+          : { request_id: crypto.randomUUID(), presets: value };
+      saveLocal(key("portrait-create-request"), request);
+      setCreatePending(request);
+      const result = await api.create(request);
+      const draft = { value, result };
+      saveLocal(key("portrait-draft"), draft);
+      setPortraitDraft(draft);
+      removeLocal(key("portrait-create-request"));
+      setCreatePending(null);
+      if (routeRef.current.startsWith("/appearance"))
+        navigate(`/appearance/${result.id}`);
+      void loadSessions();
+      if (result.portrait.status !== "done")
+        throw new Error(
+          "서윤을 그리지 못했어요. 같은 모습으로 다시 시도해주세요. 횟수는 줄어들지 않아요.",
+        );
+    } finally {
+      gate.current = false;
+    }
   }
   async function retryPortrait() {
-    if (!portraitDraft) return;
-    const result = await api.portraitRetry(portraitDraft.result.id);
-    const draft = {
-      ...portraitDraft,
-      result: { ...portraitDraft.result, portrait: result.portrait },
-    };
-    setPortraitDraft(draft);
-    saveLocal(key("portrait-draft"), draft);
-    if (result.portrait.status !== "done")
-      throw new Error(
-        "그림을 완성하지 못했어요. 같은 모습으로 다시 시도해주세요.",
-      );
+    if (!portraitDraft || gate.current) return;
+    gate.current = true;
+    try {
+      const request = portraitDraft.retryRequest ?? {
+        request_id: crypto.randomUUID(),
+      };
+      const pendingDraft = { ...portraitDraft, retryRequest: request };
+      saveLocal(key("portrait-draft"), pendingDraft);
+      setPortraitDraft(pendingDraft);
+      const result = await api.portraitRetry(portraitDraft.result.id, request);
+      const draft: PortraitDraft = {
+        value: portraitDraft.value,
+        result: { ...portraitDraft.result, portrait: result.portrait },
+      };
+      saveLocal(key("portrait-draft"), draft);
+      setPortraitDraft(draft);
+      if (result.portrait.status !== "done")
+        throw new Error(
+          "그림을 완성하지 못했어요. 같은 모습으로 다시 시도해주세요.",
+        );
+    } finally {
+      gate.current = false;
+    }
   }
   async function startStory() {
     if (!portraitDraft) return;
@@ -517,8 +611,18 @@ export default function App() {
             listError={listError}
             onReload={() => void loadSessions()}
           />
-        ) : route === "/appearance" ? (
+        ) : isAppearanceRoute &&
+          sessionId &&
+          (loading || portraitDraft?.result.id !== sessionId) ? (
+          <main className={s.loadingPage}>
+            <p role="status">서윤의 모습을 다시 불러오고 있어요</p>
+            <button className={s.textButton} onClick={exit}>
+              처음으로 돌아가기
+            </button>
+          </main>
+        ) : isAppearanceRoute ? (
           <Appearance
+            key={sessionId ?? "new"}
             onBack={exit}
             onGenerate={generate}
             onRetry={retryPortrait}
@@ -533,7 +637,14 @@ export default function App() {
                   )
                 : 2
             }
-            restoredAppearance={portraitDraft?.value}
+            restoredAppearance={portraitDraft?.value ?? createPending?.presets}
+            pendingOperation={
+              portraitDraft?.retryRequest
+                ? "retry"
+                : createPending
+                  ? "generate"
+                  : undefined
+            }
             portraitFailed={
               portraitDraft?.result.portrait.status === "failed" ||
               portraitDraft?.result.portrait.status === "refused"

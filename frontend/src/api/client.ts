@@ -3,12 +3,13 @@ import type {
   AuthVerifyResponse,
   CardSubmitRequest,
   PortraitRetryResponse,
+  PortraitRetryRequest,
+  SessionCreateRequest,
   SessionCreateResponse,
   SessionStartResponse,
   SessionStateResponse,
   TurnSubmitRequest,
 } from "../types/server";
-import type { Appearance } from "../lib/presets";
 
 export const baseURL = import.meta.env.VITE_API_BASE_URL || "mock://local";
 export const isMock = baseURL.startsWith("mock:");
@@ -84,10 +85,10 @@ export const api = {
   verify: (code: string) =>
     post<AuthVerifyResponse>("/api/auth/verify", { code }),
   sessions: () => request<SessionList>("/api/sessions"),
-  create: (presets: Appearance) =>
-    post<SessionCreateResponse>("/api/sessions", { presets }),
-  portraitRetry: (id: string) =>
-    post<PortraitRetryResponse>(`${sessionPath(id)}/portrait/retry`),
+  create: (body: SessionCreateRequest) =>
+    post<SessionCreateResponse>("/api/sessions", body),
+  portraitRetry: (id: string, body: PortraitRetryRequest) =>
+    post<PortraitRetryResponse>(`${sessionPath(id)}/portrait/retry`, body),
   start: (id: string) => post<SessionStartResponse>(`${sessionPath(id)}/start`),
   restore: (id: string) => request<SessionStateResponse>(sessionPath(id)),
   turn: (id: string, body: TurnSubmitRequest) =>

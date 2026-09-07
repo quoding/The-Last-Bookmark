@@ -465,3 +465,192 @@ test("초상화 생성 거부를 재시도할 때 기존 회차와 잔여 횟수
   });
   expect(after).toEqual(before);
 });
+
+test("초상화 생성 응답 유실 후 새로고침해도 같은 request_id로 회차 하나만 생성한다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page
+    .getByRole("button", { name: "새 이야기 시작하기", exact: true })
+    .click();
+  await page.getByRole("button", { name: "주사위로 고르기" }).click();
+  await fault(page, "portrait-after-save");
+  await page
+    .getByRole("button", { name: "이 모습으로 시작", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "같은 요청 다시 시도하기" }),
+  ).toBeVisible();
+  const before = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    const request = JSON.parse(
+      localStorage.getItem(`last-bookmark:${token}:portrait-create-request`)!,
+    );
+    const receipts = JSON.parse(
+      localStorage.getItem(`last-bookmark:mock:v1:${token}:portrait-receipts`)!,
+    );
+    return {
+      requestId: request.request_id,
+      id: receipts[request.request_id].response.id,
+    };
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "같은 요청 다시 시도하기" }).click();
+  await expect(
+    page.getByRole("button", { name: /다시 그리기.*남은 횟수 2/ }),
+  ).toBeEnabled();
+  const after = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    return {
+      draft: JSON.parse(
+        localStorage.getItem(`last-bookmark:${token}:portrait-draft`)!,
+      ),
+      count: Object.keys(
+        JSON.parse(localStorage.getItem(`last-bookmark:mock:v1:${token}`)!),
+      ).length,
+      requests: Object.keys(
+        JSON.parse(
+          localStorage.getItem(
+            `last-bookmark:mock:v1:${token}:portrait-receipts`,
+          )!,
+        ),
+      ),
+    };
+  });
+  expect(after.draft.result.id).toBe(before.id);
+  expect(after.count).toBe(4);
+  expect(after.requests).toEqual([before.requestId]);
+});
+
+test("초상화 재생성 응답 유실을 재진입 후 재시도해도 횟수는 한 번만 소비한다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page
+    .getByRole("button", { name: "새 이야기 시작하기", exact: true })
+    .click();
+  await page.getByRole("button", { name: "주사위로 고르기" }).click();
+  await page
+    .getByRole("button", { name: "이 모습으로 시작", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /다시 그리기.*남은 횟수 2/ }),
+  ).toBeEnabled();
+  await fault(page, "portrait-retry-after-save");
+  await page.getByRole("button", { name: /다시 그리기.*남은 횟수 2/ }).click();
+  await expect(
+    page.getByRole("button", { name: "같은 요청 다시 시도하기" }),
+  ).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "같은 요청 다시 시도하기" }).click();
+  await expect(
+    page.getByRole("button", { name: /다시 그리기.*남은 횟수 1/ }),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(() => {
+      const token = localStorage.getItem("last-bookmark:token")!;
+      const receipts = JSON.parse(
+        localStorage.getItem(
+          `last-bookmark:mock:v1:${token}:portrait-receipts`,
+        )!,
+      );
+      return Object.values(receipts).filter((receipt: any) =>
+        receipt.path.endsWith("/portrait/retry"),
+      ).length;
+    }),
+  ).toBe(1);
+  await page.getByRole("button", { name: /다시 그리기.*남은 횟수 1/ }).click();
+  await expect(
+    page.getByRole("button", { name: /다시 그리기.*남은 횟수 0/ }),
+  ).toBeDisabled();
+});
+
+test("로컬 외형 캐시 없이 미확정 회차를 열면 서버 presets로 초상화 확인 화면을 복원한다", async ({
+  page,
+}) => {
+  await enter(page);
+  await page
+    .getByRole("button", { name: "새 이야기 시작하기", exact: true })
+    .click();
+  await page.getByRole("button", { name: "주사위로 고르기" }).click();
+  await page
+    .getByRole("button", { name: "이 모습으로 시작", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "이 모습으로 시작하기", exact: true }),
+  ).toBeEnabled();
+  const id = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    const draft = JSON.parse(
+      localStorage.getItem(`last-bookmark:${token}:portrait-draft`)!,
+    );
+    localStorage.removeItem(`last-bookmark:${token}:portrait-draft`);
+    return draft.result.id;
+  });
+  await page.goto(`/#/story/${id}`);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "이 모습으로 시작하기", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel("서윤에게 전할 말")).toHaveCount(0);
+  const restored = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    const draft = JSON.parse(
+      localStorage.getItem(`last-bookmark:${token}:portrait-draft`)!,
+    );
+    const server = JSON.parse(
+      localStorage.getItem(`last-bookmark:mock:v1:${token}`)!,
+    )[draft.result.id];
+    return { local: draft.value, server: server.presets };
+  });
+  expect(restored.local).toEqual(restored.server);
+  await page
+    .getByRole("button", { name: "이 모습으로 시작하기", exact: true })
+    .click();
+  await expect(page.getByText("대화 0/12 완료")).toBeVisible();
+  await page.goto(`/#/appearance/${id}`);
+  await expect(page.getByLabel("서윤에게 전할 말")).toBeVisible();
+});
+
+test("다른 브라우저에서 완료 회차를 열어도 scenes 응답으로 네 장면을 읽는다", async ({
+  page,
+  browser,
+}) => {
+  await enter(page);
+  const data = await page.evaluate(() => {
+    const token = localStorage.getItem("last-bookmark:token")!;
+    return {
+      token,
+      server: localStorage.getItem(`last-bookmark:mock:v1:${token}`)!,
+    };
+  });
+  const context = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+  });
+  try {
+    const other = await context.newPage();
+    await other.goto("/");
+    // 새 브라우저에는 인증과 목 서버 데이터만 주고 UI 이력 캐시는 전달하지 않는다.
+    await other.evaluate((data) => {
+      localStorage.setItem("last-bookmark:token", data.token);
+      localStorage.setItem(`last-bookmark:mock:v1:${data.token}`, data.server);
+    }, data);
+    await other.goto("/#/story/story-2");
+    await other.reload();
+    await expect(other.getByText("대화 12/12 완료")).toBeVisible();
+    await other.getByText("이 이야기의 그림 6장", { exact: true }).click();
+    for (const name of [
+      "마지막 손님",
+      "남겨둔 책",
+      "쓰지 못한 한 문장",
+      "문을 닫기 전에",
+    ]) {
+      await other.getByRole("button", { name, exact: true }).click();
+      await expect(
+        other.getByRole("img", { name: `${name}의 서윤`, exact: true }),
+      ).toBeVisible();
+    }
+  } finally {
+    await context.close();
+  }
+});

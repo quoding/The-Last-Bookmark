@@ -19,6 +19,7 @@ export function Appearance({
   remaining,
   restoredAppearance,
   portraitFailed = false,
+  pendingOperation,
 }: {
   onBack: () => void;
   onGenerate: (value: AppearanceValue) => Promise<void>;
@@ -28,21 +29,24 @@ export function Appearance({
   remaining: number;
   restoredAppearance?: AppearanceValue;
   portraitFailed?: boolean;
+  pendingOperation?: "generate" | "retry";
 }) {
   const [value, setValue] = useState<AppearanceValue>(
     restoredAppearance ?? emptyAppearance(),
   );
   const [phase, setPhase] = useState<"select" | "portrait">(
-    portrait || portraitFailed ? "portrait" : "select",
+    portrait || portraitFailed || pendingOperation ? "portrait" : "select",
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(
-    portraitFailed
-      ? "서윤을 그리지 못했어요. 같은 모습으로 다시 시도해주세요."
-      : "",
+    pendingOperation
+      ? "완료를 확인하지 못한 그림이 있어요. 같은 요청으로 다시 시도해주세요."
+      : portraitFailed
+        ? "서윤을 그리지 못했어요. 같은 모습으로 다시 시도해주세요."
+        : "",
   );
   const [operation, setOperation] = useState<"generate" | "retry" | "start">(
-    "generate",
+    pendingOperation ?? "generate",
   );
   const complete = axes.every((key) => value[key]);
   async function run(action: "generate" | "retry" | "start") {

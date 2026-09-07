@@ -125,7 +125,7 @@ function restore(story: StoredStory): SessionStateResponse {
       id: index + 1,
       name,
       image_url:
-        story.started && story.sceneReadyAt <= Date.now()
+        story.sceneReadyAt <= Date.now()
           ? `/images/scene-${index + 1}.svg`
           : null,
     })),
@@ -415,7 +415,7 @@ export async function mockFetch(
       cardDecided: false,
       card: { written: false, text: null, author: null },
       receipts: {},
-      sceneReadyAt: 0,
+      sceneReadyAt: Date.now() + (takeFault("scene-slow") ? 36000 : 1200),
       endingReadyAt: 0,
     };
     save();
@@ -457,6 +457,9 @@ export async function mockFetch(
       ? null
       : `/images/portrait-${((story.session.index + story.portrait.retry_count) % 3) + 1}.svg`;
     story.session.portrait_url = story.portrait.url;
+    if (!fail)
+      story.sceneReadyAt =
+        Date.now() + (takeFault("scene-slow") ? 36000 : 1200);
     save();
     const result = { portrait: story.portrait };
     saveReceipt(result);
@@ -467,8 +470,6 @@ export async function mockFetch(
     if (story.portrait.status !== "done") return reply(null, 409);
     if (!story.started) {
       story.started = true;
-      story.sceneReadyAt =
-        Date.now() + (takeFault("scene-slow") ? 36000 : 1200);
     }
     save();
     const state = restore(story);
@@ -480,6 +481,7 @@ export async function mockFetch(
     });
   }
   if (action === "/turns" || action === "/card") {
+    if (action === "/turns" && takeFault("turn-slow")) await pause(1500);
     const request = body as TurnSubmitRequest | CardSubmitRequest;
     if (!request.request_id) return reply(null, 422);
     if (story.receipts[request.request_id])

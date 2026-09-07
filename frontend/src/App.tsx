@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
-import type { Ending, Session, TurnResponse } from "./types/api";
+import type { Ending, Message, Session, TurnResponse } from "./types/api";
 import type {
   CardSubmitRequest,
   SessionCreateResponse,
@@ -28,6 +28,7 @@ type PortraitDraft = {
   result: SessionCreateResponse;
   retryRequest?: PortraitRetryRequest;
 };
+type OptimisticMessage = { sessionId: string; message: Message };
 const routeNow = () => location.hash.slice(1) || "/";
 const errorText = (error: unknown) =>
   error instanceof Error
@@ -50,6 +51,7 @@ export default function App() {
   const [globalError, setGlobalError] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [turns, setTurns] = useState<TurnResponse[]>([]);
+  const [optimistic, setOptimistic] = useState<OptimisticMessage | null>(null);
   const [ending, setEnding] = useState<Ending | null>(null);
   const [portraitDraft, setPortraitDraft] = useState<PortraitDraft | null>(
     () =>
@@ -168,6 +170,7 @@ export default function App() {
     setGlobalError("");
     setEnding(null);
     setSendError("");
+    setOptimistic(null);
     setEndError("");
     setImageError("");
     setEndingPending(false);
@@ -234,10 +237,21 @@ export default function App() {
           pending.current = null;
         } else {
           pending.current = previousRequest;
-          if (previousRequest)
+          if (previousRequest) {
             setSendError(
               "완료를 확인하지 못한 대화가 있어요. 같은 요청으로 다시 시도해주세요.",
             );
+            if (previousRequest.kind === "turn")
+              setOptimistic({
+                sessionId: state.id,
+                message: {
+                  id: `optimistic-${previousRequest.body.request_id}`,
+                  turn: previousRequest.turn,
+                  kind: "player",
+                  text: previousRequest.body.text,
+                },
+              });
+          }
         }
         setSession({
           ...item,
@@ -327,9 +341,11 @@ export default function App() {
       /* 텍스트와 이전 이미지를 유지하며 다음 폴링에서 다시 확인한다. */
     }
   }, [sessionId, token, key]);
+  const storyNeedsImages =
+    routeMatch?.[1] === "story" &&
+    (turns.length === 0 || turns.some((turn) => !turn.scene.image_url));
   useEffect(() => {
-    if (!sessionId || !turns.some((turn) => !turn.scene.image_url) || !online)
-      return;
+    if (!sessionId || !storyNeedsImages || !online) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -341,12 +357,7 @@ export default function App() {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [
-    sessionId,
-    turns.some((turn) => !turn.scene.image_url),
-    online,
-    refreshImages,
-  ]);
+  }, [sessionId, storyNeedsImages, online, refreshImages]);
   function changeText(value: string) {
     setText(value);
     if (session) saveLocal(key(`text:${session.id}`), value);
@@ -450,6 +461,17 @@ export default function App() {
     setSendError("");
     const id = session.id;
     pending.current = request;
+    if (request.kind === "turn") {
+      setOptimistic({
+        sessionId: id,
+        message: {
+          id: `optimistic-${request.body.request_id}`,
+          turn: request.turn,
+          kind: "player",
+          text: request.body.text,
+        },
+      });
+    }
     try {
       saveLocal(key(`pending:${id}`), request);
       const response =
@@ -462,10 +484,14 @@ export default function App() {
       if (request.kind === "turn") removeLocal(key(`text:${id}`));
       else removeLocal(key(`card:${id}`));
       if (activeId.current !== id) {
+        setOptimistic((current) =>
+          current?.sessionId === id ? null : current,
+        );
         void loadSessions();
         return;
       }
       setTurns(history);
+      setOptimistic(null);
       pending.current = null;
       if (request.kind === "turn") {
         setText("");
@@ -780,6 +806,9 @@ export default function App() {
             key={session!.id}
             session={session!}
             turns={turns}
+            optimisticMessage={
+              optimistic?.sessionId === session!.id ? optimistic.message : null
+            }
             readOnly={session!.status !== "in_progress"}
             text={text}
             onText={changeText}

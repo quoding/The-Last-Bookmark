@@ -1288,10 +1288,18 @@
   margin: auto;
 }
 .readOnlyNote {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   font-size: 11px;
-  color: #929d83;
-  padding: 10px 4px;
+  color: #7d8970;
+  padding: 11px 14px;
+  background: #edf0e5;
   border-bottom: 1px solid #e1e5d7;
+}
+.readOnlyNote strong {
+  color: #657258;
+  font-weight: 600;
 }
 .imageAlbum {
   font-size: 11px;

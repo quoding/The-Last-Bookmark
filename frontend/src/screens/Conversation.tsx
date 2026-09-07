@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Session, TurnResponse } from "../types/api";
+import type { Message, Session, TurnResponse } from "../types/api";
 import { SceneImage } from "../components/SceneImage";
 import { Icon } from "../components/Icon";
 import { MessageBubble } from "../components/MessageBubble";
@@ -11,6 +11,7 @@ import s from "../App.module.css";
 export function Conversation({
   session,
   turns,
+  optimisticMessage,
   readOnly,
   text,
   onText,
@@ -34,6 +35,7 @@ export function Conversation({
 }: {
   session: Session;
   turns: TurnResponse[];
+  optimisticMessage: Message | null;
   readOnly: boolean;
   text: string;
   onText: (text: string) => void;
@@ -130,6 +132,9 @@ export function Conversation({
     }
     lastCount.current = current.completed_turns;
   }, [current.completed_turns, focusMessage]);
+  useLayoutEffect(() => {
+    if (busy) toBottom();
+  }, [busy]);
   useEffect(() => {
     if (!highlighted) return;
     const timer = setTimeout(() => setHighlighted(null), 4500);
@@ -268,7 +273,8 @@ export function Conversation({
         </header>
         {readOnly && (
           <div className={s.readOnlyNote}>
-            마무리된 이야기입니다. 남겨진 대화와 그림을 다시 읽어보세요.
+            <strong>위로 스크롤하면 이전 장면을 볼 수 있어요.</strong>
+            <span>마무리된 대화와 그때의 그림이 함께 바뀝니다.</span>
           </div>
         )}
         <div className={s.logWrap}>
@@ -320,8 +326,20 @@ export function Conversation({
                 </div>
               );
             })}
+            {optimisticMessage && (
+              <MessageBubble
+                message={optimisticMessage}
+                portrait={session.portrait_url}
+                highlighted={false}
+                consecutive={false}
+              />
+            )}
             {busy && (
-              <div className={s.typing} role="status">
+              <div
+                className={s.typing}
+                role="status"
+                aria-label="서윤이 답하고 있어요"
+              >
                 <img
                   className={s.chatAvatar}
                   src={

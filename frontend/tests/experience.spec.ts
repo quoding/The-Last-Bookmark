@@ -106,7 +106,7 @@ test("응답 유실 뒤 새로고침해도 턴이 중복되지 않고 카드 원
   await page.reload();
   expect(await page.locator("blockquote").first().textContent()).toBe(sentence);
 });
-test("위쪽 대화를 읽는 동안 전송 응답이 스크롤을 빼앗지 않는다", async ({
+test("전송 즉시 내 메시지와 타이핑을 보이고 그 위치로 스크롤한다", async ({
   page,
 }) => {
   await enter(page);
@@ -118,14 +118,35 @@ test("위쪽 대화를 읽는 동안 전송 응답이 스크롤을 빼앗지 않
     element.dispatchEvent(new Event("scroll"));
   });
   await page.getByLabel("서윤에게 전할 말").fill("오늘 비가 조용하네요.");
+  await fault(page, "turn-slow");
   await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(
+    page.locator('[data-message-id^="optimistic-"]', {
+      hasText: "오늘 비가 조용하네요.",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("status", { name: "서윤이 답하고 있어요" }),
+  ).toBeVisible();
+  expect(
+    await log.evaluate(
+      (element) =>
+        element.scrollHeight - element.scrollTop - element.clientHeight,
+    ),
+  ).toBeLessThan(3);
   await expect(page.getByText("대화 8/12 완료")).toBeVisible();
-  expect(await log.evaluate((element) => element.scrollTop)).toBe(0);
-  await expect(page.getByRole("button", { name: /새 대화/ })).toBeVisible();
-  await page.getByRole("button", { name: /새 대화/ }).click();
-  expect(await log.evaluate((element) => element.scrollTop)).toBeGreaterThan(
-    100,
-  );
+  await expect(page.locator('[data-message-id^="optimistic-"]')).toHaveCount(0);
+  await expect(
+    page.locator('[data-message-id="m_8_p"]', {
+      hasText: "오늘 비가 조용하네요.",
+    }),
+  ).toBeVisible();
+  expect(
+    await log.evaluate(
+      (element) =>
+        element.scrollHeight - element.scrollTop - element.clientHeight,
+    ),
+  ).toBeLessThan(3);
 });
 test("엔딩 근거가 순차 공개되고 원문 턴으로 돌아가며 과거 회차는 읽기 전용이다", async ({
   page,
@@ -160,6 +181,9 @@ test("엔딩 근거가 순차 공개되고 원문 턴으로 돌아가며 과거 
   const quote = page.locator('[data-message-id="m_5_p"]');
   await expect(quote).toBeFocused();
   await expect(quote).toContainText("책갈피, 계속 쓰고 있어요.");
+  await expect(
+    page.getByText("위로 스크롤하면 이전 장면을 볼 수 있어요."),
+  ).toBeVisible();
   await expect(page.getByLabel("서윤에게 전할 말")).toHaveCount(0);
   await expect(page.getByLabel("이야기 메뉴")).toHaveCount(0);
   await page.getByRole("button", { name: "결말로 돌아가기" }).click();
@@ -306,6 +330,7 @@ test("이미지가 30초 지연되어도 대화는 계속 가능하고 안내만
     .getByRole("button", { name: "새 이야기 시작하기", exact: true })
     .click();
   await page.getByRole("button", { name: "주사위로 고르기" }).click();
+  await fault(page, "scene-slow");
   await page
     .getByRole("button", { name: "이 모습으로 시작", exact: true })
     .click();
@@ -313,13 +338,17 @@ test("이미지가 30초 지연되어도 대화는 계속 가능하고 안내만
     page.getByRole("button", { name: "이 모습으로 시작하기", exact: true }),
   ).toBeEnabled();
   await page.clock.install();
-  await fault(page, "scene-slow");
   await page
     .getByRole("button", { name: "이 모습으로 시작하기", exact: true })
     .click();
   await expect(page.getByText("대화 0/12 완료")).toBeVisible();
+  await expect(page.getByText("가게로 가는 중...")).toBeVisible();
   await expect(page.getByLabel("서윤에게 전할 말")).toBeEnabled();
-  await page.clock.fastForward(31000);
+  await page.clock.fastForward(3600);
+  await expect(page.getByText("책방의 불을 켜는 중...")).toBeVisible();
+  await page.clock.fastForward(3600);
+  await expect(page.getByText("책을 정리하는 중...")).toBeVisible();
+  await page.clock.fastForward(24000);
   await expect(
     page.getByText(
       "그림을 만드는 중이에요. 완성되면 이 회차에서 확인할 수 있어요",

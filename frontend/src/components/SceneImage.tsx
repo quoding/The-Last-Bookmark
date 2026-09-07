@@ -21,6 +21,7 @@ export function SceneImage({
   const [previous, setPrevious] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [slow, setSlow] = useState(false);
+  const [phrase, setPhrase] = useState(0);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     setLoadFailed(false);
@@ -47,8 +48,16 @@ export function SceneImage({
     generating || (!failed && !loadFailed && (!url || visible !== url));
   useEffect(() => {
     if (!waiting) return;
+    setPhrase(0);
+    const phraseTimer = setInterval(
+      () => setPhrase((current) => Math.min(current + 1, 3)),
+      3500,
+    );
     const timer = setTimeout(() => setSlow(true), 30000);
-    return () => clearTimeout(timer);
+    return () => {
+      clearInterval(phraseTimer);
+      clearTimeout(timer);
+    };
   }, [waiting, url, label]);
   useEffect(() => {
     if (!previous) return;
@@ -73,8 +82,18 @@ export function SceneImage({
               : slow
                 ? "그림을 만드는 중이에요. 완성되면 이 회차에서 확인할 수 있어요"
                 : label === "서윤의 초상화"
-                  ? "서윤을 그리는 중이에요"
-                  : "이 장면을 그리는 중이에요"}
+                  ? [
+                      "서윤을 그리는 중이에요",
+                      "표정을 고르는 중...",
+                      "따뜻한 빛을 더하는 중...",
+                      "마지막 붓질을 하는 중...",
+                    ][phrase]
+                  : [
+                      "가게로 가는 중...",
+                      "책방의 불을 켜는 중...",
+                      "책을 정리하는 중...",
+                      "장면의 빛을 고르는 중...",
+                    ][phrase]}
           </p>
           {(failed || loadFailed) && (
             <button

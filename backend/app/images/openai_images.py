@@ -72,9 +72,18 @@ class OpenAIImageGenerator:
 
     def edit(self, prompt: str, reference_image_paths: list[str]) -> tuple[bytes, ImageUsage | None]:
         import base64
+        from pathlib import Path
 
         client = self._client()
-        files = [open(path, "rb") for path in reference_image_paths]
+        opened = [open(path, "rb") for path in reference_image_paths]
+        # (파일명, 파일객체, content-type)을 명시한다. 표준 open()만 넘기면
+        # SDK가 파이썬 mimetypes 모듈로 확장자를 추측하는데, 이 실행 환경의
+        # mimetypes는 .webp를 모른다(guess_type("x.webp") == (None, None)).
+        # 그러면 SDK가 application/octet-stream으로 올려 OpenAI가 거부한다.
+        files = [
+            (Path(path).name, fh, "image/webp")
+            for path, fh in zip(reference_image_paths, opened)
+        ]
         try:
             result = client.images.edit(
                 model=self._model,
@@ -86,7 +95,7 @@ class OpenAIImageGenerator:
                 output_format="webp",
             )
         finally:
-            for f in files:
+            for f in opened:
                 f.close()
         return base64.b64decode(result.data[0].b64_json), _extract_usage(result)
 

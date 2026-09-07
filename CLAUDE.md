@@ -4,14 +4,19 @@
 
 ## 0. 먼저 읽을 것
 
-작업 시작 전 `docs/` 아래 두 문서를 반드시 읽는다.
+작업 시작 전 `docs/` 아래 문서를 반드시 읽는다.
 
 - `docs/story.md` — 세계관, 캐릭터 한서윤, 장면 의도, 엔딩 서사 규칙. **무엇을 만드는가**
 - `docs/ui-spec.md` — 화면 구성, 턴별 시각 테이블, 카드 인터랙션. **어떻게 보이는가**
+- `docs/api-contract.md` — 백엔드·프론트(Codex)의 유일한 접점인 API 계약. **원본은 여기다.**
+  이 파일(6장)에는 더 이상 계약 내용을 옮겨 적지 않는다
+- `docs/ops-notes.md` — 백엔드·프론트 공통 운영 규칙(시크릿 관리, 배포 폴더 구조 등).
+  Codex의 `AGENTS.md`도 같은 문서를 본다
 
-이 파일은 **어떻게 구현하는가**를 다룬다. 게임 내용을 여기서 다시 정의하지 않는다.
+이 파일은 **어떻게 구현하는가**(백엔드 한정)를 다룬다. 게임 내용을 여기서 다시 정의하지 않는다.
 
-세 문서가 충돌하면 서사와 캐릭터는 story.md, 화면 동작은 ui-spec.md, 구현 방식은 이 파일을 따른다.
+문서가 충돌하면 서사와 캐릭터는 story.md, 화면 동작은 ui-spec.md, API 계약은
+api-contract.md, 공통 운영 규칙은 ops-notes.md, 그 외 백엔드 구현 방식은 이 파일을 따른다.
 
 ## 1. 프로젝트 개요
 
@@ -122,86 +127,9 @@
 
 ## 6. API 계약
 
-프론트와의 접점이다. **변경 시 반드시 확인을 받는다.**
-
-| 메서드 | 경로 | 용도 |
-|---|---|---|
-| POST | `/api/auth/verify` | 초대 코드 검증, 토큰 발급 |
-| GET | `/api/sessions` | 해당 코드의 회차 목록 |
-| POST | `/api/sessions` | 외형 프리셋으로 회차 생성 + 초상화 |
-| POST | `/api/sessions/{id}/portrait/retry` | 초상화 재생성 (최대 2회) |
-| POST | `/api/sessions/{id}/start` | 초상화 확정, 장면 이미지 생성 시작 |
-| GET | `/api/sessions/{id}` | 회차 상태·메시지·이미지 복원 |
-| POST | `/api/sessions/{id}/turns` | 턴 제출 |
-| POST | `/api/sessions/{id}/card` | 카드 확정 또는 빈 채로 두기 |
-| POST | `/api/sessions/{id}/end` | 메뉴 조기 종료 |
-| GET | `/api/sessions/{id}/ending` | 엔딩 본문·근거·이미지 상태 |
-| POST | `/api/sessions/{id}/ending/image/retry` | 엔딩 이미지 재생성 |
-| GET | `/api/images/{image_id}` | 저장된 이미지 파일 |
-
-### 6.1 주요 응답 형태
-
-**회차 목록**
-
-```json
-{
-  "sessions": [
-    {
-      "id": "uuid",
-      "index": 3,
-      "status": "completed",
-      "completed_turns": 12,
-      "ending_title": "문을 닫은 뒤에도 남는 말",
-      "portrait_url": "/api/images/...",
-      "created_at": "2026-09-05T20:11:00+09:00"
-    }
-  ]
-}
-```
-
-**턴 응답**
-
-```json
-{
-  "messages": [
-    { "id": "m_014", "turn": 5, "kind": "player", "text": "..." },
-    { "id": "m_015", "turn": 5, "kind": "reply", "text": "..." },
-    { "id": "m_016", "turn": 5, "kind": "narration", "text": "..." },
-    { "id": "m_017", "turn": 5, "kind": "record", "record_type": "promise", "text": "..." }
-  ],
-  "completed_turns": 5,
-  "story_time": "20:41",
-  "scene": { "id": 2, "name": "남겨둔 책", "entered": false, "image_url": "..." },
-  "card_available": false,
-  "is_final_turn": false
-}
-```
-
-`kind`는 `player` / `reply` / `narration` / `record` 네 가지다. `record_type`은 `promise` / `fact` / `memory`. 내부 수치는 어떤 응답에도 넣지 않는다.
-
-**엔딩**
-
-```json
-{
-  "title": "...",
-  "body": "...",
-  "card": { "written": true, "text": "...", "author": "player" },
-  "evidence": [
-    {
-      "message_id": "m_014",
-      "turn": 5,
-      "story_time": "20:41",
-      "scene_name": "남겨둔 책",
-      "quote": "플레이어가 실제로 입력한 원문",
-      "effect": "이 말이 마지막 부탁의 바탕이 되었다."
-    }
-  ],
-  "unresolved": ["새 서점의 장소는 정해지지 않았다."],
-  "image": { "status": "generating", "url": null }
-}
-```
-
-`quote`는 **DB의 원문을 그대로** 넣는다. LLM이 다시 쓴 문장을 넣지 않는다.
+**원본은 `docs/api-contract.md`다.** 엔드포인트 목록, 멱등키가 필요한 요청, 응답 JSON
+형태가 전부 거기 있다. 이 파일에는 더 이상 계약 내용을 옮겨 적지 않는다 — 백엔드가 계약을
+바꿀 때는 `docs/api-contract.md`를 고치고, **반드시 사용자에게 먼저 확인받는다.**
 
 ## 7. 외형 프리셋과 이미지 프롬프트
 

@@ -8,3 +8,4 @@ node_modules/
 .DS_Store
 worklog_claude/
 worklog_codex/
+deploy/dist/

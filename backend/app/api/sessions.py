@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.engine.opening import OPENING_MESSAGES
 from app.engine.scene import SCENES, get_initial_scene
+from app.engine.session_admin import delete_session
 from app.images.openai_images import ImageGenerator
 from app.images.presets import InvalidPresetError, to_english_fragments, validate_selection
 from app.images.service import generate_portrait, generate_scene_image
@@ -34,6 +35,7 @@ from app.schemas import (
     SceneState,
     SessionCreateRequest,
     SessionCreateResponse,
+    SessionDeleteResponse,
     SessionListItem,
     SessionListResponse,
     SessionStartResponse,
@@ -336,3 +338,15 @@ def get_session_state(
         portrait_confirmed=session.portrait_confirmed,
         presets=PresetSelection(**session.presets),
     )
+
+
+@router.delete("/sessions/{session_id}", response_model=SessionDeleteResponse)
+def delete_session_endpoint(
+    session_id: str,
+    code_id: str = Depends(require_code_id),
+    db: DbSession = Depends(get_db),
+):
+    """회차 삭제. 진행 중·완료 상관없이 지울 수 있다. 이미지 파일도 함께 지운다."""
+    session = _get_owned_session(db, code_id, session_id)
+    delete_session(db, session)
+    return SessionDeleteResponse(status="deleted", id=session_id)

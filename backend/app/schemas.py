@@ -18,6 +18,11 @@ class AuthVerifyResponse(BaseModel):
     token: str
 
 
+class SessionDeleteResponse(BaseModel):
+    status: str
+    id: str
+
+
 class SessionListItem(BaseModel):
     id: str
     index: int

@@ -90,7 +90,10 @@ def test_portrait_retry_limited_to_two(client, auth_headers):
     assert r3.status_code == 409
 
 
-def test_start_session_generates_scene_one_and_backgrounds_rest(client, auth_headers):
+def test_start_session_returns_immediately_and_scene_images_are_precomputed(client, auth_headers):
+    """장면 이미지는 초상화가 나온 시점(회차 생성)부터 미리 만들어지므로, /start는
+    기다리지 않고 즉시 반환한다. 목 환경에서는 백그라운드 작업이 동기로 끝나
+    이 시점에 이미 준비돼 있다."""
     create_resp = client.post(
         "/api/sessions", json={"request_id": str(uuid.uuid4()), "presets": _full_preset_selection()}, headers=auth_headers
     )

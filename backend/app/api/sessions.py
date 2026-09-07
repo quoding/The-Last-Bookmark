@@ -1,7 +1,8 @@
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session as DbSession
 
 from app.api.common import (
@@ -115,6 +116,7 @@ def list_sessions(code_id: str = Depends(require_code_id), db: DbSession = Depen
 @router.post("/sessions", response_model=SessionCreateResponse)
 def create_session(
     body: SessionCreateRequest,
+    background_tasks: BackgroundTasks,
     code_id: str = Depends(require_code_id),
     db: DbSession = Depends(get_db),
     generator: ImageGenerator = Depends(get_image_generator),
@@ -155,17 +157,26 @@ def create_session(
     db.flush()
 
     fragments = to_english_fragments(selection)
+    portrait_image = None
     try:
-        image = generate_portrait(db, generator, session.id, fragments, code_id)
-        session.portrait_image_id = image.id
+        portrait_image = generate_portrait(db, generator, session.id, fragments, code_id)
+        session.portrait_image_id = portrait_image.id
         job.status = "done"
-        job.image_id = image.id
+        job.image_id = portrait_image.id
     except Exception as exc:  # noqa: BLE001
         job.status = "failed"
         job.error = str(exc)
 
     db.commit()
     db.refresh(session)
+
+    if portrait_image is not None:
+        # 초상화가 나오는 즉시 장면 4장을 미리 만들기 시작한다. 플레이어가 외형 확인
+        # 화면에 머무는 동안(재생성 여부를 고민하는 시간) 그 시간을 그대로 활용해
+        # 대화 화면 진입 시 대기를 줄인다.
+        background_tasks.add_task(
+            _run_background_scene_jobs, session.id, portrait_image.file_path, [1, 2, 3, 4]
+        )
 
     response = SessionCreateResponse(
         id=str(session.id), index=session.index, portrait=_portrait_status(session, db)
@@ -175,10 +186,29 @@ def create_session(
     return response
 
 
+def _reset_scene_jobs(db: DbSession, session_id: uuid.UUID) -> None:
+    """초상화를 다시 그리면 이전 초상화를 참조해 만든 장면 이미지가 전부 무효가 된다.
+    새로 시작할 수 있게 기존 장면 이미지·작업 행과 파일을 지운다."""
+    old_paths = [
+        row[0]
+        for row in db.execute(
+            select(Image.file_path).where(Image.session_id == session_id, Image.kind == "scene")
+        ).all()
+    ]
+    db.execute(delete(ImageJob).where(ImageJob.session_id == session_id, ImageJob.kind == "scene"))
+    db.execute(delete(Image).where(Image.session_id == session_id, Image.kind == "scene"))
+    db.commit()
+    for path_str in old_paths:
+        path = Path(path_str)
+        if path.exists():
+            path.unlink(missing_ok=True)
+
+
 @router.post("/sessions/{session_id}/portrait/retry", response_model=PortraitRetryResponse)
 def retry_portrait(
     session_id: str,
     body: PortraitRetryRequest,
+    background_tasks: BackgroundTasks,
     code_id: str = Depends(require_code_id),
     db: DbSession = Depends(get_db),
     generator: ImageGenerator = Depends(get_image_generator),
@@ -197,16 +227,20 @@ def retry_portrait(
     if not is_failure_retry and session.portrait_retry_count >= PORTRAIT_RETRY_LIMIT:
         raise HTTPException(status_code=409, detail="다시 그리기 횟수를 모두 사용했습니다.")
 
+    # 이전 초상화를 참조해 만들었을 장면 이미지는 이제 무효다. 새로 시작한다.
+    _reset_scene_jobs(db, session.id)
+
     job = ImageJob(session_id=session.id, kind="portrait", scene_id=None, status="pending")
     db.add(job)
     db.flush()
 
     fragments = to_english_fragments(session.presets)
+    portrait_image = None
     try:
-        image = generate_portrait(db, generator, session.id, fragments, code_id)
-        session.portrait_image_id = image.id
+        portrait_image = generate_portrait(db, generator, session.id, fragments, code_id)
+        session.portrait_image_id = portrait_image.id
         job.status = "done"
-        job.image_id = image.id
+        job.image_id = portrait_image.id
     except Exception as exc:  # noqa: BLE001
         job.status = "failed"
         job.error = str(exc)
@@ -217,6 +251,12 @@ def retry_portrait(
 
     db.commit()
     db.refresh(session)
+
+    if portrait_image is not None:
+        background_tasks.add_task(
+            _run_background_scene_jobs, session.id, portrait_image.file_path, [1, 2, 3, 4]
+        )
+
     response = PortraitRetryResponse(portrait=_portrait_status(session, db))
     store_response(db, body.request_id, session.id, "portrait_retry", response.model_dump())
     db.commit()
@@ -266,8 +306,11 @@ def start_session(
     background_tasks: BackgroundTasks,
     code_id: str = Depends(require_code_id),
     db: DbSession = Depends(get_db),
-    generator: ImageGenerator = Depends(get_image_generator),
 ):
+    """초상화 확정. 장면 이미지는 이미 초상화가 나온 시점(회차 생성/재생성)부터
+    백그라운드로 만들어지고 있으므로 여기서는 기다리지 않고 즉시 반환한다.
+    아직 준비되지 않았으면 scene.image_url이 null로 온다 — 프론트가 스켈레톤을
+    보여주고 폴링해야 한다(장면 2~4와 동일한 패턴)."""
     session = _get_owned_session(db, code_id, session_id)
     if session.portrait_image_id is None:
         raise HTTPException(status_code=409, detail="초상화가 없어 회차를 시작할 수 없습니다.")
@@ -278,28 +321,18 @@ def start_session(
         for kind, text in OPENING_MESSAGES:
             db.add(Message(session_id=session.id, turn=0, kind=kind, text=text))
 
-        portrait = db.get(Image, session.portrait_image_id)
-        portrait_path = portrait.file_path
-
         existing = db.execute(
             select(ImageJob).where(ImageJob.session_id == session.id, ImageJob.kind == "scene")
         ).scalars().first()
-        if existing is None:
-            job1 = ImageJob(session_id=session.id, kind="scene", scene_id=1, status="pending")
-            db.add(job1)
-            db.flush()
-            try:
-                image = generate_scene_image(db, generator, session.id, 1, portrait_path, code_id)
-                job1.status = "done"
-                job1.image_id = image.id
-            except Exception as exc:  # noqa: BLE001
-                job1.status = "failed"
-                job1.error = str(exc)
+        db.commit()
 
-            db.commit()
-            background_tasks.add_task(_run_background_scene_jobs, session.id, portrait_path, [2, 3, 4])
-        else:
-            db.commit()
+        if existing is None:
+            # 안전망: 어떤 이유로든 초상화 확정 전에 장면 생성이 시작되지 않았다면
+            # 지금 시작한다. 정상 경로에서는 회차 생성/재생성 시점에 이미 시작된다.
+            portrait = db.get(Image, session.portrait_image_id)
+            background_tasks.add_task(
+                _run_background_scene_jobs, session.id, portrait.file_path, [1, 2, 3, 4]
+            )
 
     db.refresh(session)
     scene1_job = db.execute(

@@ -74,7 +74,7 @@ def test_session_state_scenes_array_has_four_entries_with_names(client, auth_hea
     assert len(state["scenes"]) == 4
     assert [s["id"] for s in state["scenes"]] == [1, 2, 3, 4]
     assert state["scenes"][0]["name"] == "마지막 손님"
-    # 장면 1은 /start에서 동기 생성되므로 이미지가 있어야 한다
+    # 장면 이미지는 회차 생성 시점부터 미리 만들어지므로(목 환경은 동기 실행) 이미 있어야 한다
     assert state["scenes"][0]["image_url"] is not None
 
 

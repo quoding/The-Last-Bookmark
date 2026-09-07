@@ -134,6 +134,9 @@ def client(db_session, fake_image_generator, fake_llm_client, tmp_path, monkeypa
     monkeypatch.setattr(db_module, "_engine", None)
     monkeypatch.setattr(db_module, "_SessionLocal", None)
 
+    import app.api.deps as deps_module
+    import app.api.sessions as sessions_module
+    import app.api.turns as turns_module
     from app.api.deps import get_image_generator
     from app.api.deps_llm import get_llm_client
     from app.db import get_db
@@ -141,6 +144,14 @@ def client(db_session, fake_image_generator, fake_llm_client, tmp_path, monkeypa
 
     def _override_get_db():
         yield db_session
+
+    # BackgroundTasks(장면 이미지 생성)는 Depends()를 거치지 않고 build_image_generator를
+    # 직접 호출하므로, dependency_overrides만으로는 닿지 않는다. `from ... import`로
+    # 각 모듈에 이미 바인딩된 이름까지 전부 바꿔치기한다.
+    fake_builder = lambda code_id: fake_image_generator  # noqa: E731
+    monkeypatch.setattr(deps_module, "build_image_generator", fake_builder)
+    monkeypatch.setattr(sessions_module, "build_image_generator", fake_builder)
+    monkeypatch.setattr(turns_module, "build_image_generator", fake_builder)
 
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_image_generator] = lambda: fake_image_generator

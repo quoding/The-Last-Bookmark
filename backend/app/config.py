@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     image_budget_sessions: int = 100
     storage_path: str = "./storage"
 
+    # 콤마 구분 origin 목록. 프론트(Codex)는 별도 origin(Vite dev 서버, quoding.com)에서
+    # 호출하므로 CORS 허용 목록이 필요하다. 기본값은 로컬 개발 편의를 위한 것이다.
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
 
 @lru_cache
 def get_settings() -> Settings:

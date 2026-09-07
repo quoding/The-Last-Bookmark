@@ -9,6 +9,7 @@ from app.api.deps import get_image_generator
 from app.auth import issue_token, require_code_id, verify_invite_code
 from app.config import get_settings
 from app.db import get_db
+from app.engine.opening import OPENING_MESSAGES
 from app.engine.scene import get_initial_scene
 from app.images.openai_images import ImageGenerator
 from app.images.presets import InvalidPresetError, to_english_fragments, validate_selection
@@ -225,6 +226,9 @@ def start_session(
 
     if not session.portrait_confirmed:
         session.portrait_confirmed = True
+
+        for kind, text in OPENING_MESSAGES:
+            db.add(Message(session_id=session.id, turn=0, kind=kind, text=text))
 
         portrait = db.get(Image, session.portrait_image_id)
         portrait_path = portrait.file_path

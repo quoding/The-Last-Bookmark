@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from app import models  # noqa: F401  (Base.metadata에 테이블을 등록하기 위해 임포트)
 from app.db import Base
 
 TEST_INVITE_CODE = "testcode"

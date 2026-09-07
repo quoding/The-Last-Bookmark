@@ -19,6 +19,10 @@ def _test_settings_env(monkeypatch):
     monkeypatch.setenv("INVITE_CODE_HASHES", f"{TEST_CODE_ID}:{code_hash}")
     monkeypatch.setenv("AUTH_SECRET", "test-secret")
     monkeypatch.setenv("IMAGE_BUDGET_SESSIONS", "1000")
+    # 로컬 개발용 backend/.env가 실제로 존재해도 테스트가 그 값에 흔들리지 않게 고정한다.
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    monkeypatch.setenv("CODE_API_KEYS", "")
+    monkeypatch.setenv("ADMIN_PASSWORD", "")
     from app.config import get_settings
 
     get_settings.cache_clear()

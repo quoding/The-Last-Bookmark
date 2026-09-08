@@ -283,27 +283,43 @@ ENDING_RESPONSE_FORMAT_NOTE = (
     "다음 JSON 형식으로만 답한다. 다른 텍스트를 앞뒤에 붙이지 않는다.\n"
     '{"title": "8~20자 내외 제목", "body": "350~550자 한국어 본문", '
     '"unresolved": ["미해결로 남은 것 0~2개"], '
-    '"image_scene_spec": {"camera_shot": "...", "camera_angle": "...", '
+    '"image_scene_spec": {"location": "...", "camera_shot": "...", "camera_angle": "...", '
     '"character_action": "...", "gaze": "...", "composition": "...", '
     '"mood": "...", "lighting": "..."}}'
 )
 
 IMAGE_SCENE_SPEC_INSTRUCTIONS = (
     "image_scene_spec은 엔딩 이미지의 연출을 고르는 것이다. 아래 후보 중에서만 하나씩 고른다. "
-    "후보에 없는 값이나 새로운 사건을 지어내면 안 된다 — 화면에 무엇이 있는지(장소, 실제 소품, "
-    "플레이어가 자리에 있는지)는 서버가 이미 정해두었으므로 여기서는 오직 '어떻게 보여줄지'만 고른다.\n"
+    "후보에 없는 값이나 새로운 사건을 지어내면 안 된다 — 실제로 무엇을 들고 있는지는 서버가 "
+    "이미 정해두었으므로(props) 여기서는 건드리지 않는다. 그 외 '어디서, 어떻게 보여줄지'는 "
+    "전부 여기서 고른다.\n"
+    "- location: still_at_the_door(기본값, 문을 잠근 바로 그 순간) / "
+    "standing_close_in_the_doorway(플레이어가 아직 있고, 연락처 교환 또는 다음 약속 중 "
+    "하나라도 있을 때만) / standing_a_step_apart_in_silence(플레이어가 아직 있을 때) / "
+    "walking_away_together_down_the_rainy_street(플레이어가 아직 있고, 연락처 교환과 다음 약속 "
+    "수락이 둘 다 있을 때만) / player_already_disappearing_down_the_street(플레이어가 이미 "
+    "떠났을 때만) / back_inside_looking_through_the_glass(플레이어가 이미 떠났을 때만) / "
+    "sitting_alone_at_the_window(플레이어가 이미 떠났을 때만)\n"
     "- camera_shot: close / medium / full / wide\n"
     "- camera_angle: eye_level / slightly_high / slightly_low / side\n"
     "- character_action: turning_back_for_last_look / holding_the_book_close(아직 책을 안 줬을 때만) / "
-    "offering_the_card(카드를 직접 썼을 때만) / key_ring_in_hand / adjusting_the_apron_pocket / "
-    "glancing_toward_departing_player(플레이어가 이미 떠났을 때만) / waving_softly(플레이어가 아직 있을 때만) / "
-    "hands_empty_at_sides(책과 책갈피를 모두 이미 줬을 때만)\n"
+    "offering_the_card(카드를 직접 썼을 때만) / clutching_the_card_to_her_chest(카드를 직접 썼을 "
+    "때만) / looking_down_at_the_folded_card(카드를 직접 썼을 때만) / key_ring_in_hand / "
+    "adjusting_the_apron_pocket / glancing_toward_departing_player(플레이어가 이미 떠났을 때만) / "
+    "pausing_mid_step_to_look_back(플레이어가 이미 떠났을 때만) / waving_softly(플레이어가 아직 "
+    "있을 때만) / reaching_a_hand_slightly_forward(플레이어가 아직 있을 때만) / "
+    "hands_empty_at_sides(책과 책갈피를 모두 이미 줬을 때만) / watching_the_rain_in_silence / "
+    "smiling_faintly_to_herself\n"
     "- gaze: player / downward / away / object\n"
     "- composition: centered / left_weighted / right_weighted / negative_space\n"
-    "- mood: warm / restrained / unresolved / distant / relieved\n"
-    "- lighting: warm_interior / blue_rain / mixed / dim_closing\n"
-    "괄호로 조건이 적힌 character_action은 그 조건이 실제로 맞을 때만 고른다. 확신이 없으면 "
-    "turning_back_for_last_look을 고른다."
+    "- mood: warm / restrained / unresolved / distant / relieved / hopeful / wistful\n"
+    "- lighting: warm_interior / blue_rain / mixed / dim_closing / streetlight\n"
+    "괄호로 조건이 적힌 location·character_action은 그 조건이 실제로 맞을 때만 고른다. 확신이 "
+    "없으면 location은 still_at_the_door, character_action은 turning_back_for_last_look을 고른다.\n"
+    "**같은 선택을 반복하지 않는다.** 이 대화에서 실제로 오간 구체적인 말과 분위기(예: 카드에 "
+    "정확히 뭐라고 적었는지, 대화가 다정했는지 서먹했는지, 망설임이 있었는지)를 반영해서, 후보 "
+    "안에서 이번 대화만의 조합을 고른다. 조건이 여러 개 열려 있다면 매번 같은 안전한 조합만 "
+    "고르지 말고 이번 대화의 결에 맞는 것을 고른다."
 )
 
 

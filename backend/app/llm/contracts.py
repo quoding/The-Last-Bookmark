@@ -32,6 +32,7 @@ class ImageSceneSpecOut(BaseModel):
     ValidationError를 일으켜 title/body까지 통째로 강등되기 때문이다.
     """
 
+    location: str = ""
     camera_shot: str = ""
     camera_angle: str = ""
     character_action: str = ""

@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.config import get_settings
-from app.engine.scene import SCENES, get_turn_info
+from app.engine.scene import get_turn_info
 from app.llm.contracts import ImageSceneSpecOut
 from app.models import Card, ConfirmedEvent, Message
 from app.models import Session as SessionModel
@@ -93,26 +93,21 @@ def select_evidence(db: DbSession, session: SessionModel) -> list[EvidenceEntry]
     return [entries_by_message[mid] for mid in order]
 
 
-# --- 엔딩 이미지 슬롯. CLAUDE.md 7.5. 모두 미리 정의된 영문 조각이다. ---
-
-_LOCATION_BY_SCENE = {
-    1: "In the narrow aisle between the bookshelves",
-    2: "Behind the shop counter",
-    3: "At the small table by the front window",
-    4: "Under the awning outside the shop, the door locked behind her",
-}
+# --- 엔딩 이미지 슬롯. ---
+#
+# 장소(location)는 더 이상 scene_id로 고정하지 않는다. 정상 완주 시 이야기는
+# 항상 4번 장면(문 앞)에서 끝나므로, 장소를 서버가 고정해버리면 회차마다
+# 엔딩 이미지가 "문 앞에 서 있는 장면"으로 수렴해버린다 (실사용 피드백).
+# 대신 "그 직후"의 여러 순간 중 실제로 확정된 사실과 모순되지 않는 후보를
+# LLM이 고르게 하고(validate_image_scene_spec), 서버는 오직 실제로 손에 든
+# 물건(props)만 결정한다 — 이건 날조하면 안 되는 사실이라 LLM에 맡기지 않는다.
 
 
 def compute_ending_slots(session: SessionModel, card: Card | None) -> dict[str, str]:
-    """엔딩 이미지의 "사실관계" 슬롯만 결정한다.
-
-    자세(posture)·표정(expression)은 더 이상 여기서 고정하지 않는다 —
-    validate_image_scene_spec()이 만드는 연출 슬롯(character_action/mood 등)이
-    그 역할을 대신한다. 이 함수는 실제로 무엇을 들고 있는지, 어디에
-    있는지, 플레이어가 곁에 있는지처럼 서버만 결정할 수 있는 사실만 남긴다.
+    """엔딩 이미지의 "사실관계" 슬롯만 결정한다. 실제로 무엇을 들고 있는지는
+    LLM이 지어내면 안 되는 사실이라 서버가 직접 정한다. 장소·자세·표정·거리감은
+    전부 validate_image_scene_spec()이 만드는 연출 슬롯으로 옮겼다.
     """
-    location = _LOCATION_BY_SCENE[session.scene_id]
-
     if card is not None and card.written:
         props = "Holding the written card carefully"
     elif session.book_owner == "seoyun":
@@ -120,13 +115,7 @@ def compute_ending_slots(session: SessionModel, card: Card | None) -> dict[str, 
     else:
         props = "Only the ring of keys in hand"
 
-    distance = "Standing close together" if session.player_present else "Standing alone"
-
-    return {
-        "location": location,
-        "props": props,
-        "distance": distance,
-    }
+    return {"props": props}
 
 
 def finalize_ending_text(
@@ -163,17 +152,20 @@ def finalize_ending_text(
 
 
 # --- 엔딩 이미지 연출 슬롯 (image_scene_spec). LLM이 제안하지만 서버가
-# 화이트리스트로 검증한다. 사실관계(compute_ending_slots)와 달리 "어떻게
-# 보여줄지"만 다룬다. ---
+# 화이트리스트+상태 전제조건으로 검증한다. 사실관계(compute_ending_slots)와
+# 달리 "어디서, 어떻게 보여줄지"를 다룬다. 전제조건이 있는 축(location,
+# character_action)은 실제로 확정된 사실과 모순되면 조용히 기본값으로
+# 대체된다 — engine/state.py의 "허용 목록만 반영" 패턴과 동일하다. ---
 
 CAMERA_SHOT_CHOICES = {"close", "medium", "full", "wide"}
 CAMERA_ANGLE_CHOICES = {"eye_level", "slightly_high", "slightly_low", "side"}
 GAZE_CHOICES = {"player", "downward", "away", "object"}
 COMPOSITION_CHOICES = {"centered", "left_weighted", "right_weighted", "negative_space"}
-MOOD_CHOICES = {"warm", "restrained", "unresolved", "distant", "relieved"}
-LIGHTING_CHOICES = {"warm_interior", "blue_rain", "mixed", "dim_closing"}
+MOOD_CHOICES = {"warm", "restrained", "unresolved", "distant", "relieved", "hopeful", "wistful"}
+LIGHTING_CHOICES = {"warm_interior", "blue_rain", "mixed", "dim_closing", "streetlight"}
 
 DEFAULT_DIRECTION: dict[str, str] = {
+    "location": "still_at_the_door",
     "camera_shot": "full",
     "camera_angle": "eye_level",
     "character_action": "turning_back_for_last_look",
@@ -183,16 +175,38 @@ DEFAULT_DIRECTION: dict[str, str] = {
     "lighting": "dim_closing",
 }
 
+# location마다 실제 상태와 모순되지 않는지 확인하는 조건. "그 직후"의 여러
+# 순간 중 하나를 고르는 것이지, 몇 달/몇 년 뒤의 먼 미래를 그리지 않는다
+# (docs/story.md 4.4, ENDING_FORBIDDEN_NOTES와 동일한 원칙).
+LOCATION_REQUIREMENTS: dict[str, Callable[[SessionModel, "Card | None"], bool]] = {
+    "still_at_the_door": lambda s, c: True,
+    "standing_close_in_the_doorway": lambda s, c: s.player_present
+    and (s.contact_exchanged or s.future_plan_accepted),
+    "standing_a_step_apart_in_silence": lambda s, c: s.player_present,
+    "walking_away_together_down_the_rainy_street": lambda s, c: (
+        s.player_present and s.contact_exchanged and s.future_plan_accepted
+    ),
+    "player_already_disappearing_down_the_street": lambda s, c: not s.player_present,
+    "back_inside_looking_through_the_glass": lambda s, c: not s.player_present,
+    "sitting_alone_at_the_window": lambda s, c: not s.player_present,
+}
+
 # character_action마다 실제 상태와 모순되지 않는지 확인하는 조건.
 CHARACTER_ACTION_REQUIREMENTS: dict[str, Callable[[SessionModel, "Card | None"], bool]] = {
     "turning_back_for_last_look": lambda s, c: True,
     "holding_the_book_close": lambda s, c: s.book_owner == "seoyun",
     "offering_the_card": lambda s, c: c is not None and c.written,
+    "clutching_the_card_to_her_chest": lambda s, c: c is not None and c.written,
+    "looking_down_at_the_folded_card": lambda s, c: c is not None and c.written,
     "key_ring_in_hand": lambda s, c: True,
     "adjusting_the_apron_pocket": lambda s, c: True,
     "glancing_toward_departing_player": lambda s, c: not s.player_present,
+    "pausing_mid_step_to_look_back": lambda s, c: not s.player_present,
     "waving_softly": lambda s, c: s.player_present,
+    "reaching_a_hand_slightly_forward": lambda s, c: s.player_present,
     "hands_empty_at_sides": lambda s, c: s.book_owner == "player" and s.bookmark_owner == "player",
+    "watching_the_rain_in_silence": lambda s, c: True,
+    "smiling_faintly_to_herself": lambda s, c: True,
 }
 
 
@@ -219,8 +233,12 @@ def validate_image_scene_spec(
     if raw_spec.lighting in LIGHTING_CHOICES:
         result["lighting"] = raw_spec.lighting
 
-    requirement = CHARACTER_ACTION_REQUIREMENTS.get(raw_spec.character_action)
-    if requirement is not None and requirement(session, card):
+    location_requirement = LOCATION_REQUIREMENTS.get(raw_spec.location)
+    if location_requirement is not None and location_requirement(session, card):
+        result["location"] = raw_spec.location
+
+    action_requirement = CHARACTER_ACTION_REQUIREMENTS.get(raw_spec.character_action)
+    if action_requirement is not None and action_requirement(session, card):
         result["character_action"] = raw_spec.character_action
 
     return result

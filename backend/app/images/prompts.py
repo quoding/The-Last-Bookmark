@@ -80,15 +80,37 @@ CAMERA_ANGLE_PHRASES = {
     "side": "from the side, in profile",
 }
 
+LOCATION_PHRASES = {
+    "still_at_the_door": "Standing right at the shop's door, the moment frozen just as it locked",
+    "standing_close_in_the_doorway": "Standing close together in the doorway, not quite ready to step apart",
+    "standing_a_step_apart_in_silence": "Standing a step apart in the doorway, a small comfortable distance between them",
+    "walking_away_together_down_the_rainy_street": (
+        "Seen from behind, walking away together down the wet, lamplit street, the shop small behind them"
+    ),
+    "player_already_disappearing_down_the_street": (
+        "Alone in the doorway, watching a small distant figure disappear down the rainy street"
+    ),
+    "back_inside_looking_through_the_glass": (
+        "Back inside the shop, looking out through the glass door at the empty street"
+    ),
+    "sitting_alone_at_the_window": "Sitting alone at the front window, the closed sign turned outward behind her",
+}
+
 CHARACTER_ACTION_PHRASES = {
     "turning_back_for_last_look": "She has turned back for one last look",
     "holding_the_book_close": "She is holding the book close, not yet handed over",
     "offering_the_card": "She is holding the written card gently",
+    "clutching_the_card_to_her_chest": "She holds the written card close to her chest with both hands",
+    "looking_down_at_the_folded_card": "She looks down at the card, now folded small in her hands",
     "key_ring_in_hand": "She holds a small ring of keys",
     "adjusting_the_apron_pocket": "She is adjusting the pen in her apron pocket",
-    "glancing_toward_departing_player": "She glances toward the door the player has already left through",
+    "glancing_toward_departing_player": "She glances toward the direction the player has already left",
+    "pausing_mid_step_to_look_back": "She has paused mid-step to glance back one more time",
     "waving_softly": "She raises a hand in a small, soft wave",
+    "reaching_a_hand_slightly_forward": "She has raised a hand slightly, as if reaching out, then hesitated",
     "hands_empty_at_sides": "Her hands rest empty at her sides",
+    "watching_the_rain_in_silence": "She watches the rain fall in silence",
+    "smiling_faintly_to_herself": "She smiles faintly to herself, half-lost in thought",
 }
 
 GAZE_PHRASES = {
@@ -111,6 +133,8 @@ MOOD_PHRASES = {
     "unresolved": "The overall mood feels unresolved and a little uncertain",
     "distant": "The overall mood feels distant and reserved",
     "relieved": "The overall mood feels quietly relieved",
+    "hopeful": "The overall mood feels quietly hopeful",
+    "wistful": "The overall mood feels wistful, tinged with quiet longing",
 }
 
 LIGHTING_PHRASES = {
@@ -118,6 +142,7 @@ LIGHTING_PHRASES = {
     "blue_rain": "lit by cool blue light from the rain outside",
     "mixed": "lit by a mix of warm interior light and cool blue light from outside",
     "dim_closing": "lit dimly, most of the interior lights already off",
+    "streetlight": "lit by a distant streetlight reflected on the wet pavement",
 }
 
 
@@ -139,7 +164,6 @@ def ending_prompt(
     *,
     location: str,
     props: str,
-    distance: str,
     camera_shot: str,
     camera_angle: str,
     character_action: str,
@@ -148,12 +172,15 @@ def ending_prompt(
     mood: str,
     lighting: str,
 ) -> str:
-    """사실관계 슬롯(location/props/distance)과 연출 슬롯을 합쳐 엔딩 이미지
-    프롬프트를 채운다. 둘 다 이미 확정/검증된 값만 들어온다 (CLAUDE.md 5.5)."""
+    """사실관계 슬롯(props)과 연출 슬롯(그 외 전부)을 합쳐 엔딩 이미지 프롬프트를
+    채운다. `location`도 연출 슬롯이다 — 실제로 확정된 사실(함께 있는지,
+    연락처를 교환했는지 등)과 모순되지 않는 후보 중 LLM이 고른 값만 들어온다
+    (engine/ending.py:validate_image_scene_spec). 전부 이미 검증된 값만
+    들어오므로 여기서는 문구로 채워 넣기만 한다 (CLAUDE.md 5.5)."""
     camera = f"{CAMERA_SHOT_PHRASES[camera_shot]}, {CAMERA_ANGLE_PHRASES[camera_angle]}."
     body = (
-        f"{location}. {CHARACTER_ACTION_PHRASES[character_action]}, {GAZE_PHRASES[gaze]}. "
-        f"{COMPOSITION_PHRASES[composition]}. {props}. {distance}. "
+        f"{LOCATION_PHRASES[location]}. {CHARACTER_ACTION_PHRASES[character_action]}, "
+        f"{GAZE_PHRASES[gaze]}. {COMPOSITION_PHRASES[composition]}. {props}. "
         f"{MOOD_PHRASES[mood]}, {LIGHTING_PHRASES[lighting]}."
     )
     return "\n\n".join([STYLE_BLOCK_BASE, REFERENCE_SUMMARY, camera, body, NEGATIVE_BLOCK])

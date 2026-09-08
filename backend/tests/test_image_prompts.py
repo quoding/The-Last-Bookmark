@@ -37,9 +37,8 @@ def test_scene_prompt_does_not_mention_appearance_axes():
 
 def test_ending_prompt_fills_all_slots():
     prompt = prompts.ending_prompt(
-        location="under the awning",
+        location="still_at_the_door",
         props="only the keys in hand",
-        distance="standing close together",
         camera_shot="medium",
         camera_angle="eye_level",
         character_action="turning_back_for_last_look",
@@ -48,7 +47,7 @@ def test_ending_prompt_fills_all_slots():
         mood="restrained",
         lighting="dim_closing",
     )
-    assert "under the awning" in prompt
+    assert prompts.LOCATION_PHRASES["still_at_the_door"] in prompt
     assert prompts.STYLE_BLOCK_BASE in prompt
     assert prompts.NEGATIVE_BLOCK in prompt
     assert prompts.CAMERA_SHOT_PHRASES["medium"] in prompt

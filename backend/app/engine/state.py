@@ -26,6 +26,7 @@ RECORD_TEMPLATES: dict[str, tuple[str | None, str | None]] = {
     "future_plan_accepted": ("promise", "다음 만남을 약속했다"),
     "contact_exchanged": ("fact", "연락할 방법을 주고받았다"),
     "player_departed": (None, None),
+    "personal_detail_shared": (None, None),
 }
 
 
@@ -116,6 +117,18 @@ def _apply_player_departed(session: Session, payload: dict) -> bool:
     return False
 
 
+def _apply_personal_detail_shared(session: Session, payload: dict) -> bool:
+    """플레이어가 자기 자신에 대해 실제로 새로운 걸 말했을 때 표시만 한다.
+
+    세계 상태를 바꾸지 않는다(book_declined과 같은 패턴) — 이 이벤트의
+    유일한 목적은 select_evidence()가 이 턴의 원문을 엔딩 근거 후보로
+    줍게 만드는 것이다. 이게 없으면 책/카드/약속처럼 정해진 사건과
+    무관한 대화(플레이어가 왜 왔는지, 요즘 어떤지, 무슨 생각을 하는지)는
+    아무리 나눠도 엔딩에 전혀 반영되지 않는다.
+    """
+    return True
+
+
 APPLIERS: dict[str, Callable[[Session, dict], bool]] = {
     "help_offered": _apply_help_offered,
     "help_completed": _apply_help_completed,
@@ -129,6 +142,7 @@ APPLIERS: dict[str, Callable[[Session, dict], bool]] = {
     "future_plan_accepted": _apply_future_plan_accepted,
     "contact_exchanged": _apply_contact_exchanged,
     "player_departed": _apply_player_departed,
+    "personal_detail_shared": _apply_personal_detail_shared,
 }
 
 

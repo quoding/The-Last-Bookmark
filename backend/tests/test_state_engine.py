@@ -100,6 +100,18 @@ def test_door_locked_is_never_settable_via_proposed_event():
     assert session.door_locked is False
 
 
+def test_personal_detail_shared_always_confirms_without_changing_state():
+    session = _fresh_session()
+    confirmed = confirm_proposed_events(
+        session, [ProposedEvent("personal_detail_shared", {})], turn=3
+    )
+    assert {c.event_type for c in confirmed} == {"personal_detail_shared"}
+    # 세계 상태(사실관계)는 전혀 안 바뀐다 — 근거로 남기기 위한 표시일 뿐이다.
+    assert session.book_owner == "seoyun"
+    assert session.bookmark_owner == "seoyun"
+    assert session.door_locked is False
+
+
 def test_book_returned_requires_player_to_own_it_first():
     session = _fresh_session(book_owner="seoyun")
     confirmed = confirm_proposed_events(session, [ProposedEvent("book_returned", {})], turn=6)

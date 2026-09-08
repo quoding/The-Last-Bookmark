@@ -27,9 +27,13 @@ EVIDENCE_EFFECT_TEXT: dict[str, str] = {
     "future_plan_accepted": "이 말이 다음 만남을 약속하는 계기가 되었다.",
     "contact_exchanged": "이 말이 연락처를 주고받는 계기가 되었다.",
     "help_completed": "이 말이 정리를 함께 마무리하는 데 영향을 주었다.",
+    "personal_detail_shared": "이 말이 서윤에게 오래 남을 이야기가 되었다.",
 }
 
-MAX_EVIDENCE = 3
+# 책/카드처럼 정해진 사건 4~5개 안에 personal_detail_shared까지 넣으려면 3개로는
+# 부족하다. 회차마다 다른, 이 플레이어만의 엔딩을 만들려면 잡담이 아니라 실제로
+# 오간 개인적인 이야기가 근거로 남아야 한다.
+MAX_EVIDENCE = 5
 
 
 @dataclass(frozen=True)

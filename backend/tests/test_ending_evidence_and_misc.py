@@ -26,6 +26,29 @@ def _submit_turn(client, auth_headers, session_id, text, request_id=None):
     )
 
 
+def test_personal_detail_shared_becomes_ending_evidence(client, auth_headers, fake_llm_client):
+    """책/카드 같은 정해진 사건과 무관한 개인적인 대화도 근거로 남아야 한다."""
+    session_id = _start_session(client, auth_headers)
+    fake_llm_client.turn_queue.append(
+        {
+            "reply": "그런 이유로 오늘 들르셨군요.",
+            "narration": "",
+            "proposed_events": [{"type": "personal_detail_shared", "payload": {}}],
+        }
+    )
+    _submit_turn(client, auth_headers, session_id, "요즘 이직 준비 중이라 마음이 복잡해서 왔어요")
+
+    resp = client.post(
+        f"/api/sessions/{session_id}/end",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    ending = client.get(f"/api/sessions/{session_id}/ending", headers=auth_headers).json()
+    quotes = [e["quote"] for e in ending["evidence"]]
+    assert "요즘 이직 준비 중이라 마음이 복잡해서 왔어요" in quotes
+
+
 def test_proposal_without_acceptance_is_not_evidence(client, auth_headers, fake_llm_client):
     """경로 B: 제안과 수락을 구분한다. 제안만 있으면 근거로 회수되지 않는다."""
     session_id = _start_session(client, auth_headers)

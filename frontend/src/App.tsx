@@ -471,6 +471,8 @@ export default function App() {
           text: request.body.text,
         },
       });
+      setText("");
+      removeLocal(key(`text:${id}`));
     }
     try {
       saveLocal(key(`pending:${id}`), request);
@@ -481,8 +483,7 @@ export default function App() {
       const history = appendTurn(turns, response);
       saveLocal(key(`history:${id}`), history);
       removeLocal(key(`pending:${id}`));
-      if (request.kind === "turn") removeLocal(key(`text:${id}`));
-      else removeLocal(key(`card:${id}`));
+      if (request.kind === "card") removeLocal(key(`card:${id}`));
       if (activeId.current !== id) {
         setOptimistic((current) =>
           current?.sessionId === id ? null : current,
@@ -493,10 +494,7 @@ export default function App() {
       setTurns(history);
       setOptimistic(null);
       pending.current = null;
-      if (request.kind === "turn") {
-        setText("");
-        removeLocal(key(`text:${id}`));
-      } else {
+      if (request.kind === "card") {
         setCardText("");
         removeLocal(key(`card:${id}`));
       }

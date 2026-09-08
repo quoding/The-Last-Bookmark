@@ -150,7 +150,10 @@ export function Conversation({
     )
       return;
     focusAfterResponse.current = false;
-    if (window.matchMedia("(pointer: coarse)").matches) return;
+    const phoneLikePointer =
+      window.matchMedia("(pointer: coarse)").matches &&
+      window.matchMedia("(max-width: 899px)").matches;
+    if (phoneLikePointer) return;
     input.current?.focus({ preventScroll: true });
   }, [busy, locked, readOnly, cardOpen, confirm]);
   useEffect(() => {

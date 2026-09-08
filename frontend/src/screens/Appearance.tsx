@@ -150,10 +150,6 @@ export function Appearance({
               <br />
               마지막 영업일입니다.
             </p>
-            <div className={s.smallRule} />
-            <span className={s.fine}>
-              27세 · 크림색 니트와 짙은 초록색 앞치마
-            </span>
           </aside>
         </div>
       ) : (

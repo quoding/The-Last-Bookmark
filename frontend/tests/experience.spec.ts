@@ -150,6 +150,7 @@ test("전송 즉시 내 메시지와 타이핑을 보이고 그 위치로 스크
       hasText: "오늘 비가 조용하네요.",
     }),
   ).toBeVisible();
+  await expect(page.getByLabel("서윤에게 전할 말")).toHaveValue("");
   await expect(
     page.getByRole("status", { name: "서윤이 답하고 있어요" }),
   ).toBeVisible();
@@ -163,7 +164,9 @@ test("전송 즉시 내 메시지와 타이핑을 보이고 그 위치로 스크
     element.scrollTop = 0;
     element.dispatchEvent(new Event("scroll"));
   });
-  await expect(page.getByText("대화 8/12 완료")).toBeVisible();
+  await expect(page.getByText("대화 8/12 완료")).toBeVisible({
+    timeout: 12000,
+  });
   await expect(page.getByLabel("서윤에게 전할 말")).toBeFocused();
   await expect(page.locator('[data-message-id^="optimistic-"]')).toHaveCount(0);
   await expect(

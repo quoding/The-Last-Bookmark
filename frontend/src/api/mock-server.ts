@@ -486,7 +486,7 @@ export async function mockFetch(
     });
   }
   if (action === "/turns" || action === "/card") {
-    if (action === "/turns" && takeFault("turn-slow")) await pause(1500);
+    if (action === "/turns" && takeFault("turn-slow")) await pause(8000);
     const request = body as TurnSubmitRequest | CardSubmitRequest;
     if (!request.request_id) return reply(null, 422);
     if (story.receipts[request.request_id])

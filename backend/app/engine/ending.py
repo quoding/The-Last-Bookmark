@@ -43,17 +43,21 @@ class EvidenceEntry:
 
 
 def select_evidence(db: DbSession, session: SessionModel) -> list[EvidenceEntry]:
-    """확정된 사건 중 근거로 보여줄 만한 것만, 실제 플레이어 원문과 함께 고른다."""
+    """확정된 사건 중 근거로 보여줄 만한 것만, 실제 플레이어 원문과 함께 고른다.
+
+    한 턴의 같은 발언이 여러 사건(예: 책과 책갈피를 동시에 건네는 결정)을 함께
+    확정시킬 수 있다. 이때 같은 message_id로 근거를 두 번 만들지 않고, 효과
+    문장을 하나로 합친다 — 그러지 않으면 같은 원문이 그대로 중복 표시된다.
+    """
     confirmed = db.execute(
         select(ConfirmedEvent)
         .where(ConfirmedEvent.session_id == session.id, ConfirmedEvent.event_type.in_(EVIDENCE_EFFECT_TEXT))
         .order_by(ConfirmedEvent.turn)
     ).scalars().all()
 
-    entries: list[EvidenceEntry] = []
+    entries_by_message: dict[str, EvidenceEntry] = {}
+    order: list[str] = []
     for event in confirmed:
-        if len(entries) >= MAX_EVIDENCE:
-            break
         player_message = db.execute(
             select(Message)
             .where(Message.session_id == session.id, Message.turn == event.turn, Message.kind == "player")
@@ -61,18 +65,32 @@ def select_evidence(db: DbSession, session: SessionModel) -> list[EvidenceEntry]
         ).scalars().first()
         if player_message is None:
             continue
-        turn_info = get_turn_info(event.turn)
-        entries.append(
-            EvidenceEntry(
-                message_id=str(player_message.id),
-                turn=event.turn,
-                story_time=turn_info.story_time,
-                scene_name=turn_info.scene_name,
-                quote=player_message.text,
-                effect=EVIDENCE_EFFECT_TEXT[event.event_type],
+        message_id = str(player_message.id)
+        effect = EVIDENCE_EFFECT_TEXT[event.event_type]
+        if message_id in entries_by_message:
+            existing = entries_by_message[message_id]
+            entries_by_message[message_id] = EvidenceEntry(
+                message_id=existing.message_id,
+                turn=existing.turn,
+                story_time=existing.story_time,
+                scene_name=existing.scene_name,
+                quote=existing.quote,
+                effect=f"{existing.effect} {effect}",
             )
+            continue
+        if len(order) >= MAX_EVIDENCE:
+            continue
+        turn_info = get_turn_info(event.turn)
+        entries_by_message[message_id] = EvidenceEntry(
+            message_id=message_id,
+            turn=event.turn,
+            story_time=turn_info.story_time,
+            scene_name=turn_info.scene_name,
+            quote=player_message.text,
+            effect=effect,
         )
-    return entries
+        order.append(message_id)
+    return [entries_by_message[mid] for mid in order]
 
 
 # --- 엔딩 이미지 슬롯. CLAUDE.md 7.5. 모두 미리 정의된 영문 조각이다. ---

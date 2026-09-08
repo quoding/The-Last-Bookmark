@@ -116,6 +116,40 @@ def test_book_returned_after_given_becomes_evidence(client, auth_headers, fake_l
     assert any("돌려주는" in effect for effect in effects)
 
 
+def test_same_turn_confirming_two_events_does_not_duplicate_evidence_quote(
+    client, auth_headers, fake_llm_client
+):
+    """실사고: 같은 턴에 book_given과 bookmark_given이 함께 확정되면 같은 원문이
+    근거 목록에 두 번 뜨는 버그가 있었다. 이제는 한 번만 뜨고 효과 문장만 합쳐진다."""
+    session_id = _start_session(client, auth_headers)
+    for turn in range(1, 4):
+        _submit_turn(client, auth_headers, session_id, f"{turn}번째 말")
+
+    fake_llm_client.turn_queue.append(
+        {
+            "reply": "책이랑 책갈피 같이 드릴게요.",
+            "narration": "",
+            "proposed_events": [
+                {"type": "book_given", "payload": {}},
+                {"type": "bookmark_given", "payload": {}},
+            ],
+        }
+    )
+    _submit_turn(client, auth_headers, session_id, "감사해요 잘 읽을게요")
+
+    resp = client.post(
+        f"/api/sessions/{session_id}/end",
+        json={"request_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    ending = client.get(f"/api/sessions/{session_id}/ending", headers=auth_headers).json()
+    quotes = [e["quote"] for e in ending["evidence"]]
+    assert quotes.count("감사해요 잘 읽을게요") == 1
+    matching = [e for e in ending["evidence"] if e["quote"] == "감사해요 잘 읽을게요"][0]
+    assert "책" in matching["effect"] and "책갈피" in matching["effect"]
+
+
 def test_image_budget_blocks_new_session(client, auth_headers, monkeypatch):
     from app.config import get_settings
 

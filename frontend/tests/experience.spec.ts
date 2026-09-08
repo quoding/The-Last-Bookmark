@@ -159,19 +159,19 @@ test("전송 즉시 내 메시지와 타이핑을 보이고 그 위치로 스크
         element.scrollHeight - element.scrollTop - element.clientHeight,
     ),
   ).toBeLessThan(3);
+  await log.evaluate((element) => {
+    element.scrollTop = 0;
+    element.dispatchEvent(new Event("scroll"));
+  });
   await expect(page.getByText("대화 8/12 완료")).toBeVisible();
+  await expect(page.getByLabel("서윤에게 전할 말")).toBeFocused();
   await expect(page.locator('[data-message-id^="optimistic-"]')).toHaveCount(0);
   await expect(
     page.locator('[data-message-id="m_8_p"]', {
       hasText: "오늘 비가 조용하네요.",
     }),
   ).toBeVisible();
-  expect(
-    await log.evaluate(
-      (element) =>
-        element.scrollHeight - element.scrollTop - element.clientHeight,
-    ),
-  ).toBeLessThan(3);
+  expect(await log.evaluate((element) => element.scrollTop)).toBe(0);
 });
 test("엔딩 근거가 순차 공개되고 원문 턴으로 돌아가며 과거 회차는 읽기 전용이다", async ({
   page,
@@ -337,6 +337,7 @@ test("빈 카드 확정만 턴을 소비하며 문장을 지어내지 않는다"
   await page.getByRole("button", { name: "카드에 한 문장 남기기" }).click();
   await page.getByRole("button", { name: "빈 채로 두기", exact: true }).click();
   await expect(page.getByText("대화 8/12 완료")).toBeVisible();
+  await expect(page.getByLabel("서윤에게 전할 말")).toBeFocused();
   await page.getByLabel("이야기 메뉴").click();
   await page
     .getByRole("button", { name: "여기서 이야기 마무리하기", exact: true })

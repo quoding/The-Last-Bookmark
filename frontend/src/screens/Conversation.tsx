@@ -70,6 +70,8 @@ export function Conversation({
   const [cardOpen, setCardOpen] = useState(false);
   const [highlighted, setHighlighted] = useState<string | null>(focusMessage);
   const input = useRef<HTMLTextAreaElement>(null);
+  const wasBusy = useRef(busy);
+  const focusAfterResponse = useRef(false);
   const locked = busy || endBusy || endingPending || endingReady || !!error;
   function readScroll() {
     const element = root.current;
@@ -135,6 +137,22 @@ export function Conversation({
   useLayoutEffect(() => {
     if (busy) toBottom();
   }, [busy]);
+  useLayoutEffect(() => {
+    if (wasBusy.current && !busy) focusAfterResponse.current = true;
+    wasBusy.current = busy;
+    if (
+      !focusAfterResponse.current ||
+      locked ||
+      readOnly ||
+      cardOpen ||
+      confirm ||
+      document.querySelector("dialog[open]")
+    )
+      return;
+    focusAfterResponse.current = false;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    input.current?.focus({ preventScroll: true });
+  }, [busy, locked, readOnly, cardOpen, confirm]);
   useEffect(() => {
     if (!highlighted) return;
     const timer = setTimeout(() => setHighlighted(null), 4500);

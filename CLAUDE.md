@@ -50,7 +50,7 @@ api-contract.md, 공통 운영 규칙은 ops-notes.md, 그 외 백엔드 구현 
 | DB | PostgreSQL 16 |
 | 프론트 | React 18 + TypeScript + Vite (별도 작업) |
 | 텍스트 LLM | `gpt-5.6-luna` |
-| 이미지 | OpenAI `gpt-image-2.5-flare`, quality `low` |
+| 이미지 | OpenAI `gpt-image-2`, quality `low` |
 | 배포 | N100 홈서버, Docker Compose, `quoding.com` |
 
 새 의존성을 추가하기 전에 표준 라이브러리나 이미 있는 패키지로 되는지 확인한다. ORM 이외의 DB 추상화, 메시지 큐, 워커 프레임워크는 이 규모에 불필요하다.
@@ -340,7 +340,7 @@ story.md의 내용과 1:1로 대응하는 상수로 관리한다. 스토리가 �
 
 | 파라미터 | 값 |
 |---|---|
-| `model` | `gpt-image-2.5-flare` |
+| `model` | `gpt-image-2` |
 | `quality` | `low` |
 | `size` | `1024x1536` (세로 고정) |
 | `n` | 1 |
@@ -447,7 +447,7 @@ LLM과 이미지 호출은 목으로 대체한다. 프롬프트 조립과 상태
 LLM_API_KEY=
 LLM_MODEL=gpt-5.6-luna
 IMAGE_API_KEY=
-IMAGE_MODEL=gpt-image-2.5-flare
+IMAGE_MODEL=gpt-image-2
 IMAGE_QUALITY=low
 IMAGE_SIZE=1024x1536
 DATABASE_URL=

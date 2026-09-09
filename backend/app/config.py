@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-5.6-luna"
 
     image_api_key: str = ""
-    image_model: str = "gpt-image-2"
+    image_model: str = "gpt-image-2.5-flare"
     image_quality: str = "low"
     image_size: str = "1024x1536"
 

@@ -15,7 +15,7 @@
   검증한 것만 바뀌고, 실제 대화 원문이 그대로 엔딩의 근거로 인용됨
 - 같은 시작이어도 **엔딩 텍스트와 엔딩 이미지가 매번 다르게 생성**됨(정답이나 단일 승리 조건 없음)
 - 백엔드 FastAPI + PostgreSQL, 프론트 React/TypeScript, 텍스트는 `gpt-5.6-luna`, 이미지는
-  `gpt-image-2`, Docker Compose로 자체 서버에 배포
+  `gpt-image-2.5-flare`, Docker Compose로 자체 서버에 배포
 
 ---
 
@@ -27,7 +27,7 @@
 | DB | PostgreSQL 16 |
 | 프론트엔드 | React 18, TypeScript, Vite |
 | 텍스트 생성 | OpenAI `gpt-5.6-luna` |
-| 이미지 생성 | OpenAI `gpt-image-2` (초상화·장면·엔딩 이미지, 참조 이미지 기반 편집) |
+| 이미지 생성 | OpenAI `gpt-image-2.5-flare` (초상화·장면·엔딩 이미지, 참조 이미지 기반 편집) |
 | 인프라 | Docker Compose, nginx, Cloudflare Tunnel, 자체 호스팅(N100 홈서버) |
 
 ## 핵심 기술 포인트
@@ -81,6 +81,13 @@ LLM은 대사와 상태 변화 "제안"만 만든다. 실제로 상태를 바꾸
 ---
 
 ## 게임 소개
+
+### 시작하기 — 초대 코드
+
+![초대 코드 입력 화면](docs/assets/codeinput.png)
+
+채용 포트폴리오용 데모라 초대 코드를 가진 소수만 접속할 수 있다. 코드를 검증하면 그 코드에
+묶인 회차 목록으로 이동하고, 이후의 모든 회차는 코드별로 분리 저장된다.
 
 ### 배경
 
